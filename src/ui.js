@@ -413,21 +413,17 @@ export class GameUI {
             <div class="topbar-title">Rebel Inc: Coalición</div>
           </div>
           <div class="topbar-center">
-            <div class="progress-war">
-              <div class="pw-label pw-label-left">
-                <span class="pw-dot" style="background:var(--gold);"></span>
-                ${g.players[this.myIndex].name}: ${myRegions}
+            <div class="progress-war reputation-bar" style="max-width: 500px; margin: 0 auto;">
+              <div class="pw-label pw-label-left" style="font-weight:800; font-size:0.9rem; color: #fff; text-shadow: 0 0 10px var(--gold);">
+                REPUTACIÓN DE COALICIÓN: ${g.players[0].popularity}%
               </div>
-              <div class="pw-bar">
-                <div class="pw-fill-left" style="width:${myInfPct}%"></div>
-                <div class="pw-fill-right" style="width:${100 - myInfPct}%"></div>
+              <div class="pw-bar" style="background: rgba(0,0,0,0.6); border: 2px solid ${g.players[0].popularity < 25 ? 'var(--blue-light)' : 'var(--gold)'}; border-radius: 6px; height: 16px;">
+                <div class="pw-fill-left" style="width:${g.players[0].popularity}%; background: ${g.players[0].popularity < 25 ? 'var(--blue-light)' : 'var(--gold)'}; transition: all 0.5s; box-shadow: 0 0 15px ${g.players[0].popularity < 25 ? 'var(--blue-light)' : 'var(--gold)'}; border-radius: 4px;"></div>
               </div>
-              <div class="pw-label pw-label-right">
-                ${g.players[this.myIndex === 0 ? 1 : 0].name}: ${oppRegions}
-                <span class="pw-dot" style="background:var(--blue-light);"></span>
+              <div class="pw-label pw-label-right" style="color:var(--text-dim); font-size:0.75rem; margin-top:2px;">
+                Colapso inminente al 0%
               </div>
             </div>
-            ${g.peaceDuration > 0 ? `<div style="text-align:center;color:var(--gold);font-size:0.75rem;margin-top:4px;">🕊️ Tregua Internacional activa (${g.peaceDuration} turnos)</div>` : ''}
           </div>
           <div class="topbar-right">
             <div class="turn-badge ${isMyTurn ? 'my-turn' : 'not-my-turn'}">
@@ -557,11 +553,23 @@ export class GameUI {
               if(a.cost?.resources) costStr.push(`${a.cost.resources}📡`);
               if(a.cost?.military) costStr.push(`${a.cost.military}🪖`);
               if(a.cost?.popularity) costStr.push(`${a.cost.popularity}⭐`);
+              const parts = a.name.split(' ');
+              const icon = parts[0];
+              const title = parts.slice(1).join(' ');
               return `
                 <div class="action-card card ${disabled ? 'disabled' : ''}" data-action="${a.id}">
-                  <div class="action-name">${a.name}</div>
-                  <div class="action-desc">${a.desc}${needsRegion && !this.selectedRegion && isMyTurn ? ' <em style="color:var(--gold);">(MAPA)</em>' : ''}</div>
-                  <div class="action-cost">${costStr.length > 0 ? `Costo: ${costStr.join(' + ')}` : 'Gratis'}</div>
+                  <div style="display:flex; align-items:center;">
+                    <div style="font-size: 1.8rem; margin-right: 12px; background: rgba(0,0,0,0.4); padding: 8px; border-radius: 8px; border: 1px solid var(--border); box-shadow: inset 0 0 10px rgba(0,0,0,0.5);">${icon}</div>
+                    <div style="flex:1;">
+                      <div class="action-name" style="font-size:0.9rem; margin:0;">${title}</div>
+                      <div class="action-desc" style="font-size:0.75rem; color:var(--text-dim); margin-top:4px; line-height:1.3;">
+                        ${a.desc}${needsRegion && !this.selectedRegion && isMyTurn ? '<br/><em style="color:var(--gold); font-weight:bold;">📍 REQUIERE SELECCIÓN</em>' : ''}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="action-cost" style="margin-top:8px; border-top:1px solid rgba(255,255,255,0.1); padding-top:6px; font-weight:800; font-size:0.75rem;">
+                    ${costStr.length > 0 ? `COSTO OPR: ${costStr.join(' | ')}` : 'GRATUITO'}
+                  </div>
                 </div>
               `;
             }).join('')}
@@ -579,7 +587,7 @@ export class GameUI {
     `;
 
     // Event listeners
-    this.app.querySelectorAll('.region-card').forEach(el => {
+    this.app.querySelectorAll('.region-node').forEach(el => {
       el.addEventListener('click', () => {
         SFX.click();
         this.selectedRegion = el.dataset.region;
@@ -707,19 +715,23 @@ export class GameUI {
     const p0w = total > 0 ? (region.influence[0] / Math.max(total, 1)) * 100 : 0;
     const p1w = total > 0 ? (region.influence[1] / Math.max(total, 1)) * 100 : 0;
 
+    const hasInsurgents = (region.troops[1] || 0) > 0;
+    const isStable = region.influence[0] === 100 && !hasInsurgents;
+
     return `
-      <div class="region-node ${ownerClass} ${selected}" data-region="${region.id}" style="${inlineStyle}">
-        <div class="node-influence-ring" style="background: conic-gradient(var(--gold) 0% ${p0w}%, var(--blue-light) ${p0w}% ${p0w + p1w}%, var(--border) ${p0w + p1w}% 100%);"></div>
-        <div class="node-inner">
+      <div class="region-node ${ownerClass} ${selected} ${hasInsurgents ? 'has-insurgents' : ''}" data-region="${region.id}" style="${inlineStyle}">
+        <div class="node-influence-ring" style="background: conic-gradient(var(--gold) 0% ${p0w}%, var(--blue-light) ${p0w}% ${p0w + p1w}%, rgba(20,25,30,0.8) ${p0w + p1w}% 100%);"></div>
+        <div class="node-inner" style="${isStable ? 'background-color: var(--gold);' : ''}">
           <div class="node-icon">${region.icon}</div>
         </div>
+        ${hasInsurgents && !isStable ? `<div class="insurgent-warning" style="position:absolute; top:-30px; font-size:1.5rem; text-shadow:0 0 10px #f00;">⚠️</div>` : ''}
         <div class="troops-bubbles">
-          ${region.troops && region.troops[0] > 0 ? `<div class="troop-bubble player-0">🪖 ${region.troops[0]}</div>` : ''}
-          ${region.troops && region.troops[1] > 0 ? `<div class="troop-bubble player-1">🪖 ${region.troops[1]}</div>` : ''}
+          ${region.troops && region.troops[0] > 0 ? `<div class="troop-bubble player-0">🛡️ ${region.troops[0]}</div>` : ''}
+          ${region.troops && region.troops[1] > 0 ? `<div class="troop-bubble player-1">⚔️ ${region.troops[1]}</div>` : ''}
         </div>
         <div class="node-labels">
-          <div class="node-name">${region.name} <span style="opacity:0.6">(${region.population}M)</span></div>
-          <div class="node-inf-text">🟡 ${region.influence[0]}% | 🔵 ${region.influence[1]}%</div>
+          <div class="node-name" style="${isStable ? 'color: var(--gold-light);' : ''}">${region.name} <span style="opacity:0.6">(${region.population}M)</span></div>
+          <div class="node-inf-text">Estabilidad: ${region.influence[0]}% | Riesgo: ${region.influence[1]}%</div>
         </div>
       </div>
     `;
