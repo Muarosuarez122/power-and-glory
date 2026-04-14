@@ -4,7 +4,7 @@
  */
 import { Peer } from 'peerjs';
 
-const PEER_PREFIX = 'podergloria-';
+const PEER_PREFIX = 'poder-gloria-global-v1-';
 
 export class Network {
   constructor() {
@@ -35,22 +35,14 @@ export class Network {
       this.isHost = true;
       const peerId = PEER_PREFIX + this.roomCode;
 
-      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.');
-      const peerConfig = isLocal ? {
-        host: window.location.hostname || '127.0.0.1',
-        port: 5173,
-        path: '/peerjs/app',
+      // Use Cloud PeerServer for Global Connectivity (Internet)
+      const peerConfig = {
+        debug: 1,
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-          ]
-        }
-      } : {
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' }
           ]
         }
       };
@@ -82,22 +74,14 @@ export class Network {
       this.isHost = false;
       const hostId = PEER_PREFIX + this.roomCode;
 
-      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.');
-      const peerConfig = isLocal ? {
-        host: window.location.hostname || '127.0.0.1',
-        port: 5173,
-        path: '/peerjs/app',
+      // Use Cloud PeerServer for Global Connectivity (Internet)
+      const peerConfig = {
+        debug: 1,
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-          ]
-        }
-      } : {
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' }
           ]
         }
       };
