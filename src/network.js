@@ -38,11 +38,14 @@ export class Network {
       // Use Cloud PeerServer for Global Connectivity (Internet)
       const peerConfig = {
         debug: 1,
+        secure: true,
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' }
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' }
           ]
         }
       };
@@ -77,11 +80,14 @@ export class Network {
       // Use Cloud PeerServer for Global Connectivity (Internet)
       const peerConfig = {
         debug: 1,
+        secure: true,
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' }
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' }
           ]
         }
       };
@@ -114,7 +120,15 @@ export class Network {
   }
 
   _setupConnection(conn) {
+    // Hearthbeat logic to keep the connection alive
+    this._pingInterval = setInterval(() => {
+      if (this.conn && this.conn.open) {
+        this.send({ type: 'ping' });
+      }
+    }, 15000);
+
     conn.on('data', (data) => {
+      if (data.type === 'ping') return;
       if (data.type === 'handshake' && this.onConnected) {
         this.onConnected(data.name);
       }
@@ -125,6 +139,7 @@ export class Network {
 
     conn.on('close', () => {
       console.log('[Network] Connection closed');
+      if (this._pingInterval) clearInterval(this._pingInterval);
       if (this.onDisconnect) this.onDisconnect();
     });
   }
