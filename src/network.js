@@ -36,6 +36,9 @@ export class Network {
       const peerId = PEER_PREFIX + this.roomCode;
 
       this.peer = new Peer(peerId, {
+        host: window.location.hostname,
+        port: 5173,
+        path: '/peerjs/app',
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
@@ -71,6 +74,9 @@ export class Network {
       const hostId = PEER_PREFIX + this.roomCode;
 
       this.peer = new Peer({
+        host: window.location.hostname,
+        port: 5173,
+        path: '/peerjs/app',
         config: {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },

@@ -376,10 +376,6 @@ export class GameUI {
         time: new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       });
       SFX.chat();
-      if (!this.chatOpen) {
-        this.unreadChat++;
-        this._updateChatBadge();
-      }
       this._appendChatMessage(this.chatMessages[this.chatMessages.length - 1]);
     }
     if (data.type === 'surrender') {
@@ -497,26 +493,45 @@ export class GameUI {
             </div>
           </div>
 
-          <!-- CENTER: Regions -->
+          <!-- CENTER: Tactical Map and Comms -->
           <div class="game-center">
             <div class="regions-title">
-              🗺️ Mapa de Regiones
+              🗺️ Mapa Táctico en Tiempo Real
               ${this.selectedRegion ? `<span class="selected-region-tag">📍 ${g.regions.find(r => r.id === this.selectedRegion)?.name || ''}</span>` : ''}
             </div>
-            <div class="regions-grid">
+            
+            <div class="tactical-map">
+              <svg class="map-connections" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <!-- Conexiones fijas visuales -->
+                <line x1="45" y1="50" x2="40" y2="20" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" stroke-dasharray="2,2"/>
+                <line x1="45" y1="50" x2="45" y2="80" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" stroke-dasharray="2,2"/>
+                <line x1="45" y1="50" x2="15" y2="45" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" stroke-dasharray="2,2"/>
+                <line x1="45" y1="50" x2="80" y2="45" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" stroke-dasharray="2,2"/>
+                <line x1="40" y1="20" x2="75" y2="15" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" stroke-dasharray="2,2"/>
+              </svg>
               ${g.regions.map(r => this._renderRegionCard(r)).join('')}
             </div>
 
-            <!-- Event Log -->
-            <div class="event-log panel">
-              <h4>📜 Registro de Eventos</h4>
-              ${g.log.slice(-10).reverse().map(entry => `
-                <div class="log-entry ${entry.isEvent ? 'log-event' : ''} ${entry.player === this.myIndex ? 'log-mine' : ''}">
-                  <span class="log-time">R${entry.round}</span>
-                  ${entry.message}
-                </div>
-              `).join('')}
-              ${g.log.length === 0 ? '<div class="log-entry" style="color:var(--text-muted);">La campaña acaba de comenzar...</div>' : ''}
+            <!-- INTEL & COMMUNICATIONS -->
+            <div class="intel-panel panel">
+              <div class="chat-header">
+                <span>📡 COMUNICACIONES & INTELIGENCIA</span>
+              </div>
+              <div class="chat-messages" id="chatMessages">
+                ${[...g.log.map(l => ({...l, isGameLog: true})), ...this.chatMessages.map(m => ({...m, isChat: true, timestamp: new Date(m.time).getTime() || Date.now()}))]
+                  .sort((a,b) => (a.timestamp || 0) - (b.timestamp || 0))
+                  .map(entry => {
+                    if (entry.isGameLog) {
+                      return `<div class="log-entry ${entry.isEvent ? 'log-event' : ''} ${entry.player === this.myIndex ? 'log-mine' : ''}"><span class="log-time">R${entry.round}</span> ${entry.message}</div>`;
+                    } else if (entry.isChat) {
+                      return `<div class="chat-msg ${entry.mine ? 'mine' : 'theirs'}"><div class="chat-msg-name">${entry.from}</div><div class="chat-msg-text">${this._escapeHtml(entry.message)}</div><div class="chat-msg-time">${entry.time}</div></div>`;
+                    }
+                  }).join('')}
+              </div>
+              <div class="chat-input-area">
+                <input class="input chat-input" id="chatInput" type="text" placeholder="Transmitir mensaje aliado o amenaza..." maxlength="200" />
+                <button class="btn btn-sm btn-primary" id="btnChatSend">Enviar</button>
+              </div>
             </div>
           </div>
 
@@ -527,23 +542,20 @@ export class GameUI {
               const needsRegion = a.needsRegion;
               const affordable = isMyTurn && canAfford(g, a.id) && g.actionsLeft > 0;
               const regionSelected = !needsRegion || this.selectedRegion;
-              const disabled = !affordable || !regionSelected || (a.id === 'invasion' && g.peaceDuration > 0);
-              
+              const disabled = !affordable || !regionSelected || (a.id === 'combat' && g.peaceDuration > 0);
               let costStr = [];
               if(a.cost?.money) costStr.push(`$${a.cost.money}`);
               if(a.cost?.resources) costStr.push(`${a.cost.resources}🛢️`);
               if(a.cost?.military) costStr.push(`${a.cost.military}🪖`);
               if(a.cost?.popularity) costStr.push(`${a.cost.popularity}⭐`);
-              
               return `
                 <div class="action-card card ${disabled ? 'disabled' : ''}" data-action="${a.id}">
                   <div class="action-name">${a.name}</div>
-                  <div class="action-desc">${a.desc}${needsRegion && !this.selectedRegion && isMyTurn ? ' <em style="color:var(--gold);">(selecciona mapa)</em>' : ''}</div>
+                  <div class="action-desc">${a.desc}${needsRegion && !this.selectedRegion && isMyTurn ? ' <em style="color:var(--gold);">(MAPA)</em>' : ''}</div>
                   <div class="action-cost">${costStr.length > 0 ? `Costo: ${costStr.join(' + ')}` : 'Gratis'}</div>
                 </div>
               `;
             }).join('')}
-
             <div class="end-turn-container">
               <button class="btn btn-primary" id="btnEndTurn" style="width:100%;" ${!isMyTurn ? 'disabled' : ''}>
                 ${isMyTurn ? '⏭️ Terminar Turno' : '⏳ Esperando...'}
@@ -552,33 +564,6 @@ export class GameUI {
                 🏳️ Rendirse
               </button>
             </div>
-          </div>
-        </div>
-
-        <!-- CHAT TOGGLE -->
-        <button class="chat-toggle-btn" id="btnChatToggle">
-          💬 ${this.unreadChat > 0 ? `<span class="chat-badge">${this.unreadChat}</span>` : ''}
-        </button>
-
-        <!-- CHAT PANEL -->
-        <div class="chat-panel ${this.chatOpen ? 'open' : ''}" id="chatPanel">
-          <div class="chat-header">
-            <span>💬 Chat</span>
-            <button class="chat-close-btn" id="btnChatClose">✕</button>
-          </div>
-          <div class="chat-messages" id="chatMessages">
-            ${this.chatMessages.map(m => `
-              <div class="chat-msg ${m.mine ? 'mine' : 'theirs'}">
-                <div class="chat-msg-name">${m.from}</div>
-                <div class="chat-msg-text">${this._escapeHtml(m.message)}</div>
-                <div class="chat-msg-time">${m.time}</div>
-              </div>
-            `).join('')}
-            ${this.chatMessages.length === 0 ? '<div class="chat-empty">No hay mensajes aún. ¡Saluda a tu rival!</div>' : ''}
-          </div>
-          <div class="chat-input-area">
-            <input class="input chat-input" id="chatInput" type="text" placeholder="Escribe un mensaje..." maxlength="200" />
-            <button class="btn btn-sm btn-primary" id="btnChatSend">Enviar</button>
           </div>
         </div>
       </div>
@@ -643,23 +628,6 @@ export class GameUI {
   }
 
   _setupChatListeners() {
-    document.getElementById('btnChatToggle')?.addEventListener('click', () => {
-      this.chatOpen = !this.chatOpen;
-      this.unreadChat = 0;
-      const panel = document.getElementById('chatPanel');
-      if (panel) panel.classList.toggle('open', this.chatOpen);
-      this._updateChatBadge();
-      if (this.chatOpen) {
-        setTimeout(() => document.getElementById('chatInput')?.focus(), 100);
-      }
-    });
-
-    document.getElementById('btnChatClose')?.addEventListener('click', () => {
-      this.chatOpen = false;
-      const panel = document.getElementById('chatPanel');
-      if (panel) panel.classList.remove('open');
-    });
-
     document.getElementById('btnChatSend')?.addEventListener('click', () => this._sendChat());
     document.getElementById('chatInput')?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this._sendChat();
@@ -702,11 +670,6 @@ export class GameUI {
     container.scrollTop = container.scrollHeight;
   }
 
-  _updateChatBadge() {
-    const btn = document.getElementById('btnChatToggle');
-    if (!btn) return;
-    btn.innerHTML = `💬 ${this.unreadChat > 0 ? `<span class="chat-badge">${this.unreadChat}</span>` : ''}`;
-  }
 
   _escapeHtml(str) {
     const div = document.createElement('div');
@@ -715,6 +678,19 @@ export class GameUI {
   }
 
   _renderRegionCard(region) {
+    const coords = {
+      capital: 'top: 35%; left: 45%;',
+      norte: 'top: 5%; left: 35%;',
+      sur: 'top: 65%; left: 40%;',
+      costa: 'top: 30%; left: 10%;',
+      industrial: 'top: 35%; left: 75%;',
+      frontera: 'top: 10%; left: 65%;',
+      selva: 'top: 65%; left: 70%;',
+      desierto: 'top: 5%; left: 10%;',
+      islas: 'top: 65%; left: 10%;'
+    };
+    const inlineStyle = coords[region.id] || '';
+
     const owner = getRegionOwner(region);
     const ownerClass = owner === 0 ? 'player-0' : owner === 1 ? 'player-1' : 'neutral';
     const selected = this.selectedRegion === region.id ? 'selected' : '';
@@ -724,7 +700,11 @@ export class GameUI {
     const ownerName = owner === 0 ? this.game.players[0].name : owner === 1 ? this.game.players[1].name : 'Neutral';
 
     return `
-      <div class="region-card card ${ownerClass} ${selected}" data-region="${region.id}">
+      <div class="region-card card ${ownerClass} ${selected}" data-region="${region.id}" style="${inlineStyle}">
+        <div class="troops-bubbles">
+          ${region.troops && region.troops[0] > 0 ? `<div class="troop-bubble player-0">🪖 ${region.troops[0]}</div>` : ''}
+          ${region.troops && region.troops[1] > 0 ? `<div class="troop-bubble player-1">🪖 ${region.troops[1]}</div>` : ''}
+        </div>
         <div class="region-name">${region.icon} ${region.name}</div>
         <div class="region-pop">Población: ${region.population}M</div>
         <div class="region-control">

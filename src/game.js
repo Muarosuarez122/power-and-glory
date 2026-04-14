@@ -68,22 +68,54 @@ const ACTIONS = [
     }
   },
   {
-    id: 'invasion',
-    name: '⚔️ Invasión Armada',
-    desc: 'Toma el control a la fuerza. Reduce popularidad y cuesta ejército.',
-    cost: { military: 30 },
+    id: 'deploy_troops',
+    name: '🪖 Despliegue de Tropas',
+    desc: 'Usa 20 Ejército Global para establecer un Campamento de 20 Tropas en una región.',
+    cost: { military: 20 },
     needsRegion: true,
     effect: (game, region) => {
-      if (game.peaceDuration > 0) return `⚠️ Invasión fallida: Tratado de paz vigente.`;
+      region.troops[game.currentTurn] = (region.troops[game.currentTurn] || 0) + 20;
+      return `🪖 20 Unidades desplegadas en ${region.name}.`;
+    }
+  },
+  {
+    id: 'combat',
+    name: '⚔️ Lanzar Ofensiva',
+    desc: 'Ordena a tus tropas atacar. Cuesta popularidad. Si destruyes al enemigo, ganas su territorio.',
+    cost: { money: 10, popularity: 2 },
+    needsRegion: true,
+    effect: (game, region) => {
+      if (game.peaceDuration > 0) return `⚠️ Ofensiva fallida: Tratado de paz vigente.`;
       
       const opp = game.currentTurn === 0 ? 1 : 0;
-      region.influence[game.currentTurn] = 100;
-      region.influence[opp] = 0;
+      const myTroops = region.troops[game.currentTurn] || 0;
+      let oppTroops = region.troops[opp] || 0;
       
-      // Costo ético de la guerra
-      game.players[game.currentTurn].popularity = Math.max(0, game.players[game.currentTurn].popularity - 15);
+      if (myTroops <= 0) return `⚠️ No tienes tropas desplegadas en esta región para iniciar una ofensiva.`;
       
-      return `⚔️ ¡INVASIÓN EXITOSA en ${region.name}! Pierdes 15% popularidad mundial.`;
+      // Roll dice for combat casualties
+      const myRoll = Math.floor(Math.random() * myTroops) + Math.floor(myTroops * 0.5);
+      const oppRoll = oppTroops > 0 ? (Math.floor(Math.random() * oppTroops) + Math.floor(oppTroops * 0.5)) : 0;
+      
+      const casualtiesMe = Math.min(myTroops, Math.floor(Math.random() * (oppRoll || 3)));
+      const casualtiesOpp = Math.min(oppTroops, Math.floor(Math.random() * myRoll));
+      
+      region.troops[game.currentTurn] = Math.max(0, myTroops - casualtiesMe);
+      region.troops[opp] = Math.max(0, oppTroops - casualtiesOpp);
+      
+      let resMsg = `⚔️ Ofensiva en ${region.name}: Bajas propias (${casualtiesMe}), Bajas enemigas (${casualtiesOpp}). `;
+      
+      if (region.troops[opp] === 0 && oppTroops > 0) {
+        region.influence[game.currentTurn] = Math.min(100, region.influence[game.currentTurn] + 25);
+        region.influence[opp] = Math.max(0, region.influence[opp] - 40);
+        resMsg += `¡VICTORIA! Enemigo erradicado. Ganas 25% influencia local.`;
+      } else if (region.troops[opp] === 0) {
+        region.influence[game.currentTurn] = Math.min(100, region.influence[game.currentTurn] + 15);
+        resMsg += `Ocupación pacífica (+15% influencia local).`;
+      } else {
+        resMsg += `El frente se mantiene activo.`;
+      }
+      return resMsg;
     }
   },
   {
@@ -146,7 +178,8 @@ const ACTIONS_PER_TURN = 2;
 export function createGameState(player0Name, player1Name) {
   const regions = REGIONS.map(r => ({
     ...r,
-    influence: { 0: 0, 1: 0 } // Player 0 and Player 1 influence %
+    influence: { 0: 0, 1: 0 }, // Player 0 and Player 1 influence %
+    troops: { 0: 0, 1: 0 }     // Player 0 and Player 1 local troops
   }));
 
   return {
@@ -187,7 +220,7 @@ export function canAfford(game, actionId) {
   const r = action.cost?.resources || 0;
   const mil = action.cost?.military || 0;
   
-  if (actionId === 'invasion' && game.peaceDuration > 0) return false; // Peace treaties block invasion outright
+  if (actionId === 'combat' && game.peaceDuration > 0) return false; // Peace treaties block combat
   
   return player.money >= m && player.popularity >= p && player.resources >= r && player.military >= mil;
 }
