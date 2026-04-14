@@ -35,7 +35,8 @@ export class Network {
       this.isHost = true;
       const peerId = PEER_PREFIX + this.roomCode;
 
-      this.peer = new Peer(peerId, {
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.');
+      const peerConfig = isLocal ? {
         host: window.location.hostname || '127.0.0.1',
         port: 5173,
         path: '/peerjs/app',
@@ -45,7 +46,15 @@ export class Network {
             { urls: 'stun:stun1.l.google.com:19302' }
           ]
         }
-      });
+      } : {
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ]
+        }
+      };
+      this.peer = new Peer(peerId, peerConfig);
 
       this.peer.on('open', () => {
         console.log('[Network] Host room created:', this.roomCode);
@@ -73,7 +82,8 @@ export class Network {
       this.isHost = false;
       const hostId = PEER_PREFIX + this.roomCode;
 
-      this.peer = new Peer({
+      const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.');
+      const peerConfig = isLocal ? {
         host: window.location.hostname || '127.0.0.1',
         port: 5173,
         path: '/peerjs/app',
@@ -83,7 +93,15 @@ export class Network {
             { urls: 'stun:stun1.l.google.com:19302' }
           ]
         }
-      });
+      } : {
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ]
+        }
+      };
+      this.peer = new Peer(peerConfig);
 
       this.peer.on('open', () => {
         console.log('[Network] Connecting to host:', hostId);
