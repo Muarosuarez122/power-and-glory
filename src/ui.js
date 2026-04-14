@@ -502,12 +502,20 @@ export class GameUI {
             
             <div class="tactical-map">
               <svg class="map-connections" viewBox="0 0 100 100" preserveAspectRatio="none">
-                <!-- Conexiones fijas visuales -->
-                <line x1="45" y1="50" x2="40" y2="20" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" stroke-dasharray="2,2"/>
-                <line x1="45" y1="50" x2="45" y2="80" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" stroke-dasharray="2,2"/>
-                <line x1="45" y1="50" x2="15" y2="45" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" stroke-dasharray="2,2"/>
-                <line x1="45" y1="50" x2="80" y2="45" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" stroke-dasharray="2,2"/>
-                <line x1="40" y1="20" x2="75" y2="15" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" stroke-dasharray="2,2"/>
+                <line x1="50" y1="15" x2="50" y2="45" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
+                <line x1="50" y1="15" x2="75" y2="20" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
+                <line x1="50" y1="15" x2="25" y2="20" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
+                <line x1="50" y1="45" x2="20" y2="45" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
+                <line x1="50" y1="45" x2="80" y2="45" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
+                <line x1="50" y1="45" x2="75" y2="20" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
+                <line x1="50" y1="45" x2="25" y2="20" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
+                <line x1="50" y1="45" x2="50" y2="75" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
+                <line x1="75" y1="20" x2="80" y2="45" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
+                <line x1="80" y1="45" x2="75" y2="70" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
+                <line x1="75" y1="70" x2="50" y2="75" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
+                <line x1="50" y1="75" x2="25" y2="70" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
+                <line x1="25" y1="70" x2="20" y2="45" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
+                <line x1="20" y1="45" x2="25" y2="20" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
               </svg>
               ${g.regions.map(r => this._renderRegionCard(r)).join('')}
             </div>
@@ -679,15 +687,15 @@ export class GameUI {
 
   _renderRegionCard(region) {
     const coords = {
-      capital: 'top: 35%; left: 45%;',
-      norte: 'top: 5%; left: 35%;',
-      sur: 'top: 65%; left: 40%;',
-      costa: 'top: 30%; left: 10%;',
-      industrial: 'top: 35%; left: 75%;',
-      frontera: 'top: 10%; left: 65%;',
-      selva: 'top: 65%; left: 70%;',
-      desierto: 'top: 5%; left: 10%;',
-      islas: 'top: 65%; left: 10%;'
+      capital: 'top: 45%; left: 50%;',
+      norte: 'top: 15%; left: 50%;',
+      sur: 'top: 75%; left: 50%;',
+      costa: 'top: 45%; left: 20%;',
+      industrial: 'top: 45%; left: 80%;',
+      frontera: 'top: 20%; left: 75%;',
+      selva: 'top: 70%; left: 75%;',
+      desierto: 'top: 20%; left: 25%;',
+      islas: 'top: 70%; left: 25%;'
     };
     const inlineStyle = coords[region.id] || '';
 
@@ -695,30 +703,22 @@ export class GameUI {
     const ownerClass = owner === 0 ? 'player-0' : owner === 1 ? 'player-1' : 'neutral';
     const selected = this.selectedRegion === region.id ? 'selected' : '';
     const total = (region.influence[0] || 0) + (region.influence[1] || 0);
-    const p0w = total > 0 ? (region.influence[0] / Math.max(total, 1)) * 100 : 50;
-    const p1w = total > 0 ? (region.influence[1] / Math.max(total, 1)) * 100 : 50;
-    const ownerName = owner === 0 ? this.game.players[0].name : owner === 1 ? this.game.players[1].name : 'Neutral';
+    const p0w = total > 0 ? (region.influence[0] / Math.max(total, 1)) * 100 : 0;
+    const p1w = total > 0 ? (region.influence[1] / Math.max(total, 1)) * 100 : 0;
 
     return `
-      <div class="region-card card ${ownerClass} ${selected}" data-region="${region.id}" style="${inlineStyle}">
+      <div class="region-node ${ownerClass} ${selected}" data-region="${region.id}" style="${inlineStyle}">
+        <div class="node-influence-ring" style="background: conic-gradient(var(--gold) 0% ${p0w}%, var(--blue-light) ${p0w}% ${p0w + p1w}%, var(--border) ${p0w + p1w}% 100%);"></div>
+        <div class="node-inner">
+          <div class="node-icon">${region.icon}</div>
+        </div>
         <div class="troops-bubbles">
           ${region.troops && region.troops[0] > 0 ? `<div class="troop-bubble player-0">🪖 ${region.troops[0]}</div>` : ''}
           ${region.troops && region.troops[1] > 0 ? `<div class="troop-bubble player-1">🪖 ${region.troops[1]}</div>` : ''}
         </div>
-        <div class="region-name">${region.icon} ${region.name}</div>
-        <div class="region-pop">Población: ${region.population}M</div>
-        <div class="region-control">
-          <div class="control-bar">
-            <div class="bar-p0" style="width:${p0w}%"></div>
-            <div class="bar-p1" style="width:${p1w}%"></div>
-          </div>
-        </div>
-        <div class="region-influence-nums">
-          <span class="inf-p0">🟡 ${region.influence[0]}</span>
-          <span class="inf-p1">🔵 ${region.influence[1]}</span>
-        </div>
-        <div class="region-owner" style="color: ${owner === 0 ? 'var(--gold)' : owner === 1 ? 'var(--blue-light)' : 'var(--text-muted)'};">
-          ${ownerName}
+        <div class="node-labels">
+          <div class="node-name">${region.name} <span style="opacity:0.6">(${region.population}M)</span></div>
+          <div class="node-inf-text">🟡 ${region.influence[0]}% | 🔵 ${region.influence[1]}%</div>
         </div>
       </div>
     `;

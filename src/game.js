@@ -176,11 +176,15 @@ const MAX_ROUNDS = 12; // Extend to 12 giving time for more complex geopolitics
 const ACTIONS_PER_TURN = 2;
 
 export function createGameState(player0Name, player1Name) {
-  const regions = REGIONS.map(r => ({
-    ...r,
-    influence: { 0: 0, 1: 0 }, // Player 0 and Player 1 influence %
-    troops: { 0: 0, 1: 0 }     // Player 0 and Player 1 local troops
-  }));
+  const regions = REGIONS.map(r => {
+    const isP0Start = r.id === 'norte';
+    const isP1Start = r.id === 'sur';
+    return {
+      ...r,
+      influence: { 0: isP0Start ? 100 : 0, 1: isP1Start ? 100 : 0 },
+      troops: { 0: isP0Start ? 20 : 0, 1: isP1Start ? 20 : 0 }
+    };
+  });
 
   return {
     players: [
