@@ -338,6 +338,9 @@ export class GameUI {
     this.chatMessages = [];
     this.chatOpen = false;
     this.unreadChat = 0;
+    this._syncInterval = null;
+    this._resultSaved = false;
+    this._loadProfile();
   }
 
   // ────── MENU SCREEN ──────
@@ -363,6 +366,7 @@ export class GameUI {
               <input id="joinCodeInput" class="input" type="text" placeholder="Código de sala" maxlength="5" style="text-transform:uppercase; letter-spacing:3px; text-align:center; font-weight:800;" />
               <button id="btnJoin" class="btn btn-lg">🤝 Unirse</button>
             </div>
+            <button id="btnHistory" class="btn btn-ghost" style="margin-top:10px; font-size:0.75rem; color:var(--text-dim); opacity:0.8;">📽️ Ver Historial de Operaciones</button>
           </div>
 
           <div class="how-to-play">
@@ -389,6 +393,10 @@ export class GameUI {
     });
     document.getElementById('joinCodeInput').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this._handleJoin();
+    });
+    document.getElementById('btnHistory').addEventListener('click', () => {
+      SFX.click();
+      this._showHistoryModal();
     });
   }
 
@@ -451,8 +459,11 @@ export class GameUI {
         }
         if (data.type === 'start') {
           this.game = data.state;
+          // IMPORTANT: Switch to game data handler
+          this.network.onData = (data) => this._handleGameData(data);
           this.renderGame();
           SFX.action();
+          showToast('⚔️ ¡La campaña comienza!', 'gold');
         }
         if (data.type === 'gameState') {
           this.game = data.state;
@@ -547,9 +558,17 @@ export class GameUI {
     const p1 = this.myIndex === 0 ? this.opponentName : this.playerName;
     this.game = createGameState(p0, p1);
     this.chatMessages = [];
+    
+    // Switch handler BEFORE sending start to be ready for any immediate response
+    this.network.onData = (data) => this._handleGameData(data);
     this.network.sendStart(this.game);
 
-    this.network.onData = (data) => this._handleGameData(data);
+    // Host Pulsing: Periodic sync to ensure 'Online Game' reliability
+    this._syncInterval = setInterval(() => {
+      if (this.game && !this.game.gameOver && this.myIndex === 0) {
+        this.network.sendGameState(this.game);
+      }
+    }, 10000);
 
     this.renderGame();
     SFX.yourTurn();
@@ -582,6 +601,9 @@ export class GameUI {
         showToast('El rival ha terminado sus operaciones.', 'info');
       }
       this.renderGame();
+    }
+    if (data.type === 'victory') {
+       this._saveMatchResult(data.winner === this.myIndex);
     }
     if (data.type === 'gameState') {
       this.game = data.state;
@@ -1217,6 +1239,9 @@ export class GameUI {
     const myScore = getTotalScore(g, this.myIndex);
     const oppScore = getTotalScore(g, this.myIndex === 0 ? 1 : 0);
 
+    // Save result for the 'Online Real Game' experience
+    this._saveMatchResult(iWon);
+
     this.app.innerHTML = `
       <div class="bg-pattern"></div>
       <div class="screen-gameover">
@@ -1271,7 +1296,69 @@ export class GameUI {
       this.opponentName = '';
       this.chatMessages = [];
       this.unreadChat = 0;
+      this._resultSaved = false;
+      if (this._syncInterval) clearInterval(this._syncInterval);
       this.renderMenu();
     });
+  }
+
+  // ────── HISTORY MODAL ──────
+  _showHistoryModal() {
+    this._loadProfile();
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-content panel" style="width:400px; max-height:80vh; overflow-y:auto; border: 2px solid var(--gold); animation: fadeSlideUp 0.3s ease;">
+        <h3>📜 HISTORIAL DE OPERACIONES</h3>
+        <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:8px; margin-bottom:15px; display:flex; justify-content:space-around; font-size:0.8rem;">
+          <div><span style="color:var(--green);">W:</span> ${this.profile.wins}</div>
+          <div><span style="color:var(--red);">L:</span> ${this.profile.losses}</div>
+          <div><span style="color:var(--gold);">EXP:</span> ${this.profile.exp}</div>
+        </div>
+        
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          ${this.history.length === 0 ? '<div style="color:var(--text-dim); font-size:0.75rem; text-align:center;">No hay registros de combate.</div>' : ''}
+          ${this.history.map(h => `
+            <div class="card" style="padding:10px; font-size:0.75rem; border-left: 3px solid ${h.result === 'VICTORIA' ? 'var(--green)' : 'var(--red)'};">
+              <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                <span style="font-weight:bold; color:${h.result === 'VICTORIA' ? 'var(--green)' : 'var(--red)'};">${h.result}</span>
+                <span style="color:var(--text-dim);">${h.date}</span>
+              </div>
+              <div style="color:var(--text);">Vs: ${h.opponent || 'Desconocido'}</div>
+              <div style="font-size:0.65rem; color:var(--text-dim);">Puntuación: ${h.score}</div>
+            </div>
+          `).join('')}
+        </div>
+        
+        <button class="btn btn-primary" id="btnCloseHistory" style="width:100%; margin-top:20px;">Cerrar</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    document.getElementById('btnCloseHistory').onclick = () => overlay.remove();
+  }
+
+  // ────── PERSISTENCE & DATA ──────
+  _loadProfile() {
+    this.profile = JSON.parse(localStorage.getItem('player_profile') || '{"wins":0, "losses":0, "exp":0}');
+    this.history = JSON.parse(localStorage.getItem('match_history') || '[]');
+  }
+
+  _saveMatchResult(iWon) {
+    if (this._resultSaved) return;
+    this._resultSaved = true;
+
+    this._loadProfile();
+    this.history.unshift({
+      id: Date.now(),
+      date: new Date().toLocaleDateString(),
+      opponent: this.opponentName,
+      result: iWon ? 'VICTORIA' : 'DERROTA',
+      score: this.game ? getTotalScore(this.game, this.myIndex) : 0
+    });
+    localStorage.setItem('match_history', JSON.stringify(this.history.slice(0, 10)));
+    
+    if (iWon) this.profile.wins++; else this.profile.losses++;
+    this.profile.exp += 150;
+    localStorage.setItem('player_profile', JSON.stringify(this.profile));
   }
 }
