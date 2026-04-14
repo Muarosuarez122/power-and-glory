@@ -414,18 +414,17 @@ export class GameUI {
       const code = await this.network.createRoom();
       this._renderLobby(code, true);
 
-      this.network.onConnected = (peerName) => {
-        this.opponentName = peerName;
-        this._updateLobbyPlayer(peerName);
-        SFX.yourTurn();
-        showToast(`${peerName} se ha unido!`, 'success');
-      };
-
+      // Single unified handler for ALL incoming data while hosting
       this.network.onData = (data) => {
+        console.log('[UI][Host] Received:', data.type);
+        
         if (data.type === 'handshake') {
           this.opponentName = data.name;
           this._updateLobbyPlayer(data.name);
+          // Reply with our own handshake so guest knows our name
           this.network.sendHandshake(this.playerName);
+          SFX.yourTurn();
+          showToast(`${data.name} se ha unido!`, 'success');
         }
       };
 
@@ -446,10 +445,11 @@ export class GameUI {
 
     try {
       showToast('Conectando...', 'info');
-      await this.network.joinRoom(code);
-      this.network.sendHandshake(this.playerName);
 
+      // Set data handler BEFORE connecting so we never miss a message
       this.network.onData = (data) => {
+        console.log('[UI][Guest] Received:', data.type);
+
         if (data.type === 'handshake') {
           this.opponentName = data.name;
           this._renderLobby(code, false);
@@ -457,20 +457,25 @@ export class GameUI {
           SFX.yourTurn();
           showToast(`Conectado con ${data.name}!`, 'success');
         }
+
         if (data.type === 'start') {
+          console.log('[UI][Guest] Game START received!');
           this.game = data.state;
-          // IMPORTANT: Switch to game data handler
-          this.network.onData = (data) => this._handleGameData(data);
+          // Switch to game-phase handler
+          this.network.onData = (d) => this._handleGameData(d);
           this.renderGame();
           SFX.action();
           showToast('⚔️ ¡La campaña comienza!', 'gold');
         }
+
         if (data.type === 'gameState') {
           this.game = data.state;
           this.renderGame();
         }
       };
 
+      await this.network.joinRoom(code);
+      this.network.sendHandshake(this.playerName);
       this._renderLobby(code, false);
 
     } catch (err) {

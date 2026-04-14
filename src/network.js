@@ -1,10 +1,12 @@
 /**
  * PODER & GLORIA — P2P Network Layer (PeerJS)
  * Handles creating/joining rooms and syncing game state in real-time.
+ * Uses the FREE PeerJS Cloud Broker for global internet connectivity.
+ * Supports cross-play between Electron EXE and Web Browser.
  */
 import { Peer } from 'peerjs';
 
-const PEER_PREFIX = 'poder-gloria-global-v1-';
+const PEER_PREFIX = 'podergloria-v2-';
 
 export class Network {
   constructor() {
@@ -16,6 +18,8 @@ export class Network {
     this.onData = null;        // callback(data)
     this.onDisconnect = null;  // callback()
     this.onError = null;       // callback(err)
+    this._pingInterval = null;
+    this._connected = false;
   }
 
   /** Generate a random 5-char code */
@@ -28,6 +32,22 @@ export class Network {
     return code;
   }
 
+  /** PeerJS config — always uses the FREE cloud broker for global reach */
+  _getPeerConfig() {
+    return {
+      debug: 2,
+      config: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' }
+        ]
+      }
+    };
+  }
+
   /** Create a room (host) */
   createRoom() {
     return new Promise((resolve, reject) => {
@@ -35,31 +55,17 @@ export class Network {
       this.isHost = true;
       const peerId = PEER_PREFIX + this.roomCode;
 
-      // Use Cloud PeerServer for Global Connectivity (Internet)
-      const peerConfig = {
-        debug: 1,
-        secure: true,
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' }
-          ]
-        }
-      };
-      this.peer = new Peer(peerId, peerConfig);
+      this.peer = new Peer(peerId, this._getPeerConfig());
 
-      this.peer.on('open', () => {
-        console.log('[Network] Host room created:', this.roomCode);
+      this.peer.on('open', (id) => {
+        console.log('[Network] Host room created, peer ID:', id);
         resolve(this.roomCode);
       });
 
       this.peer.on('connection', (conn) => {
-        console.log('[Network] Peer connected:', conn.peer);
+        console.log('[Network] Guest peer connected:', conn.peer);
         this.conn = conn;
-        this._setupConnection(conn);
+        this._wireConnection(conn);
       });
 
       this.peer.on('error', (err) => {
@@ -77,33 +83,18 @@ export class Network {
       this.isHost = false;
       const hostId = PEER_PREFIX + this.roomCode;
 
-      // Use Cloud PeerServer for Global Connectivity (Internet)
-      const peerConfig = {
-        debug: 1,
-        secure: true,
-        config: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' }
-          ]
-        }
-      };
-      this.peer = new Peer(peerConfig);
+      this.peer = new Peer(this._getPeerConfig());
 
-      this.peer.on('open', () => {
-        console.log('[Network] Connecting to host:', hostId);
-        const conn = this.peer.connect(hostId, { reliable: true });
+      this.peer.on('open', (myId) => {
+        console.log('[Network] My peer ID:', myId, '-> connecting to host:', hostId);
+        const conn = this.peer.connect(hostId, { reliable: true, serialization: 'json' });
         this.conn = conn;
 
         conn.on('open', () => {
-          console.log('[Network] Connected to host!');
-          setTimeout(() => {
-            this._setupConnection(conn);
-            resolve();
-          }, 500); // Small delay to stabilize the channel before handshake
+          console.log('[Network] Channel open to host!');
+          this._wireConnection(conn);
+          this._connected = true;
+          resolve();
         });
 
         conn.on('error', (err) => {
@@ -121,19 +112,27 @@ export class Network {
     });
   }
 
-  _setupConnection(conn) {
-    // Hearthbeat logic to keep the connection alive
+  /** Wire up a data connection with heartbeat and message routing */
+  _wireConnection(conn) {
+    // Heartbeat — keeps WebRTC alive through NAT/firewalls
     this._pingInterval = setInterval(() => {
       if (this.conn && this.conn.open) {
-        this.send({ type: 'ping' });
+        try { this.conn.send({ type: '_ping' }); } catch(e) {}
       }
-    }, 15000);
+    }, 10000);
 
     conn.on('data', (data) => {
-      if (data.type === 'ping') return;
+      // Silently ignore heartbeats
+      if (!data || data.type === '_ping') return;
+
+      console.log('[Network] Received:', data.type);
+
+      // Route handshake to dedicated callback
       if (data.type === 'handshake' && this.onConnected) {
         this.onConnected(data.name);
       }
+
+      // Route ALL messages to onData (including handshake so UI can handle it too)
       if (this.onData) {
         this.onData(data);
       }
@@ -141,15 +140,27 @@ export class Network {
 
     conn.on('close', () => {
       console.log('[Network] Connection closed');
-      if (this._pingInterval) clearInterval(this._pingInterval);
+      this._cleanup();
       if (this.onDisconnect) this.onDisconnect();
     });
+
+    conn.on('error', (err) => {
+      console.error('[Network] Connection runtime error:', err);
+    });
+
+    this._connected = true;
   }
 
   /** Send data to the other player */
   send(data) {
     if (this.conn && this.conn.open) {
-      this.conn.send(data);
+      try {
+        this.conn.send(data);
+      } catch(e) {
+        console.error('[Network] Send failed:', e);
+      }
+    } else {
+      console.warn('[Network] Cannot send — connection not open');
     }
   }
 
@@ -173,14 +184,11 @@ export class Network {
     this.send({ type: 'ready', p: playerIndex });
   }
 
-  /** Send game start signal */
+  /** Send game start signal — immediate, no delay */
   sendStart(state) {
-    // Stringify/Parse ensures clean clone of state for network transmission
     const cleanState = JSON.parse(JSON.stringify(state));
-    console.log('[Network] Sending start signal...');
-    setTimeout(() => {
-      this.send({ type: 'start', state: cleanState });
-    }, 300);
+    console.log('[Network] Sending START signal with full game state');
+    this.send({ type: 'start', state: cleanState });
   }
 
   /** Send a chat message */
@@ -193,11 +201,21 @@ export class Network {
     this.send({ type: 'surrender' });
   }
 
+  /** Clean up intervals */
+  _cleanup() {
+    if (this._pingInterval) {
+      clearInterval(this._pingInterval);
+      this._pingInterval = null;
+    }
+  }
+
   /** Destroy connection */
   destroy() {
+    this._cleanup();
     if (this.conn) this.conn.close();
     if (this.peer) this.peer.destroy();
     this.conn = null;
     this.peer = null;
+    this._connected = false;
   }
 }
