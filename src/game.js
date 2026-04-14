@@ -5,15 +5,22 @@
  */
 
 const REGIONS = [
-  { id: 'capital',    name: 'La Capital',        population: 12, icon: '🏛️', prod: { money: 12, resources: 2 } },
-  { id: 'norte',      name: 'Región Norte',      population: 8,  icon: '🏔️', prod: { money: 4, resources: 10 } },
-  { id: 'sur',        name: 'Región Sur',        population: 7,  icon: '🌾', prod: { money: 6, resources: 8 } },
-  { id: 'costa',      name: 'Costa Dorada',      population: 9,  icon: '🏖️', prod: { money: 15, resources: 0 } },
-  { id: 'industrial', name: 'Zona Industrial',   population: 10, icon: '🏭', prod: { money: 8, resources: 15 } },
-  { id: 'frontera',   name: 'La Frontera',       population: 6,  icon: '🛡️', prod: { money: 4, resources: 5 } },
-  { id: 'selva',      name: 'Selva Profunda',    population: 5,  icon: '🌿', prod: { money: 2, resources: 12 } },
-  { id: 'desierto',   name: 'El Desierto',       population: 4,  icon: '🏜️', prod: { money: 5, resources: 8 } },
-  { id: 'islas',      name: 'Las Islas',         population: 3,  icon: '🏝️', prod: { money: 10, resources: 2 } },
+  { id: 'capital',       name: 'Metrópolis',       population: 15, icon: '🏛️', prod: { money: 15, resources: 2 } },
+  { id: 'norte_lejano',  name: 'Tundra Alta',      population: 2,  icon: '❄️', prod: { money: 2,  resources: 10 } },
+  { id: 'norte',         name: 'Montañas',         population: 5,  icon: '🏔️', prod: { money: 4,  resources: 8 } },
+  { id: 'frontera_norte',name: 'Paso del Norte',   population: 6,  icon: '⛺', prod: { money: 3,  resources: 6 } },
+  { id: 'desierto_norte',name: 'Dunas Rojas',      population: 3,  icon: '🏜️', prod: { money: 2,  resources: 12 } },
+  { id: 'costa',         name: 'Bahía Dorada',     population: 10, icon: '🏖️', prod: { money: 12, resources: 1 } },
+  { id: 'industrial',    name: 'Sector Fabril',    population: 12, icon: '🏭', prod: { money: 10, resources: 12 } },
+  { id: 'delta',         name: 'Delta del Río',    population: 8,  icon: '🏞️', prod: { money: 8,  resources: 6 } },
+  { id: 'selva',         name: 'Selva Profunda',   population: 4,  icon: '🌿', prod: { money: 2,  resources: 14 } },
+  { id: 'sur',           name: 'Gran Valle',       population: 9,  icon: '🌾', prod: { money: 8,  resources: 8 } },
+  { id: 'islas_lejanas', name: 'Atolón Sur',       population: 3,  icon: '🏝️', prod: { money: 8,  resources: 4 } },
+  { id: 'archipielago',  name: 'Archipiélago',     population: 5,  icon: '🗾', prod: { money: 10, resources: 5 } },
+  { id: 'estepa',        name: 'Llanura Esteparia',population: 6,  icon: '🐎', prod: { money: 5,  resources: 5 } },
+  { id: 'meseta',        name: 'Antiplanicie',     population: 3,  icon: '🌄', prod: { money: 3,  resources: 9 } },
+  { id: 'ruinas',        name: 'Antigua Capital',  population: 4,  icon: '🗿', prod: { money: 4,  resources: 10 } },
+  { id: 'yacimiento',    name: 'Yacimiento Minero',population: 7,  icon: '⛏️', prod: { money: 15, resources: 18 } }
 ];
 
 const ACTIONS = [
@@ -199,8 +206,8 @@ export function createGameState(player0Name, player1Name) {
 
   return {
     players: [
-      { name: 'El Gobierno', money: 100, popularity: 100, military: 30, resources: 20, color: 'blue' },
-      { name: 'Insurgencia Rebelde', money: 30, popularity: 100, military: 50, resources: 50, color: 'red' },
+      { name: 'El Gobierno', money: 100, popularity: 100, military: 30, resources: 20, inflation: 0, corruption: 0, color: 'blue' },
+      { name: 'Insurgencia Rebelde', money: 30, popularity: 100, military: 50, resources: 50, inflation: 0, corruption: 0, color: 'red' },
     ],
     regions,
     currentTurn: 0,
@@ -225,19 +232,27 @@ export function getActionsPerTurn() {
   return ACTIONS_PER_TURN;
 }
 
-export function canAfford(game, actionId) {
+export function getActionCost(game, actionId, playerIndex) {
   const action = ACTIONS.find(a => a.id === actionId);
-  if (!action) return false;
+  if (!action) return {};
+  const player = game.players[playerIndex];
+  const mult = 1 + ((player.inflation || 0) / 100);
+  
+  return {
+    money: action.cost?.money ? Math.ceil(action.cost.money * mult) : 0,
+    popularity: action.cost?.popularity || 0,
+    resources: action.cost?.resources || 0,
+    military: action.cost?.military || 0
+  };
+}
+
+export function canAfford(game, actionId) {
+  if (actionId === 'combat' && game.peaceDuration > 0) return false;
+  
+  const cost = getActionCost(game, actionId, game.currentTurn);
   const player = game.players[game.currentTurn];
   
-  const m = action.cost?.money || 0;
-  const p = action.cost?.popularity || 0;
-  const r = action.cost?.resources || 0;
-  const mil = action.cost?.military || 0;
-  
-  if (actionId === 'combat' && game.peaceDuration > 0) return false; // Peace treaties block combat
-  
-  return player.money >= m && player.popularity >= p && player.resources >= r && player.military >= mil;
+  return player.money >= cost.money && player.popularity >= cost.popularity && player.resources >= cost.resources && player.military >= cost.military;
 }
 
 export function performAction(game, actionId, regionId) {
@@ -246,10 +261,17 @@ export function performAction(game, actionId, regionId) {
   if (game.actionsLeft <= 0) return null;
 
   const player = game.players[game.currentTurn];
-  player.money -= (action.cost?.money || 0);
-  player.popularity -= (action.cost?.popularity || 0);
-  player.resources -= (action.cost?.resources || 0);
-  player.military -= (action.cost?.military || 0);
+  const cost = getActionCost(game, actionId, game.currentTurn);
+  
+  player.money -= cost.money;
+  player.popularity -= cost.popularity;
+  player.resources -= cost.resources;
+  player.military -= cost.military;
+
+  if (cost.money > 0) {
+    player.inflation += cost.money; // Inflación aumenta un % según el dinero gastado
+    player.corruption += cost.money * 0.3; // Corrupción aumenta ligeramente
+  }
 
   const region = regionId ? game.regions.find(r => r.id === regionId) : null;
   if (action.needsRegion && !region) return null;
@@ -281,8 +303,9 @@ export function endTurn(game) {
       }
     }
 
-    // Passive Economy
+    // Passive Economy & Economy Dynamics
     [0, 1].forEach(playerIdx => {
+      let player = game.players[playerIdx];
       let turnMoney = 0;
       let turnRes = 0;
       game.regions.forEach(r => {
@@ -293,8 +316,22 @@ export function endTurn(game) {
       });
       turnMoney += 10;
       turnRes += 5;
-      game.players[playerIdx].money += turnMoney;
-      game.players[playerIdx].resources += turnRes;
+      
+      // Inflation cool-down
+      if (player.inflation > 0) {
+        player.inflation = Math.max(0, player.inflation - 15);
+      }
+      // Corruption penalty
+      if (player.corruption > 30 && playerIdx === 0) {
+        const cPenalty = Math.floor((player.corruption - 30) / 10);
+        if (cPenalty > 0) {
+           player.popularity = Math.max(0, player.popularity - cPenalty);
+           game.log.push({ round: game.round, player: -1, message: `📉 La Corrupción rampante le cuesta ${cPenalty} Reputación al Gobierno.`, isEvent: true });
+        }
+      }
+
+      player.money += turnMoney;
+      player.resources += turnRes;
     });
 
     // Insurgency Penalty

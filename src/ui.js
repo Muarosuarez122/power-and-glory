@@ -6,7 +6,7 @@
 import {
   createGameState, getActions, performAction, endTurn, canAfford,
   getRegionOwner, countRegions, getMaxRounds, getActionsPerTurn, getTotalScore,
-  determineWinner
+  determineWinner, getActionCost
 } from './game.js';
 import { SFX } from './sfx.js';
 
@@ -448,6 +448,14 @@ export class GameUI {
                 <div class="stat-value" style="color: var(--green-light);">${me.popularity}%</div>
               </div>
               <div class="stat-card card">
+                <div class="stat-label"><span class="stat-icon">📈</span> Inflación</div>
+                <div class="stat-value" style="color: ${me.inflation > 20 ? 'var(--red-light)' : 'var(--text)'};">${me.inflation}%</div>
+              </div>
+              <div class="stat-card card">
+                <div class="stat-label"><span class="stat-icon">💼</span> Corrupción</div>
+                <div class="stat-value" style="color: ${me.corruption > 25 ? 'var(--red-light)' : 'var(--text)'};">${Math.floor(me.corruption)}%</div>
+              </div>
+              <div class="stat-card card">
                 <div class="stat-label"><span class="stat-icon">🪖</span> Reserva</div>
                 <div class="stat-value" style="color: var(--red-light);">${me.military}</div>
               </div>
@@ -480,6 +488,14 @@ export class GameUI {
                 <span>${opp.popularity}%</span>
               </div>
               <div class="opponent-mini-stat">
+                <span class="opp-label">📈 Inflación</span>
+                <span>${opp.inflation}%</span>
+              </div>
+              <div class="opponent-mini-stat">
+                <span class="opp-label">💼 Corrupción</span>
+                <span>${Math.floor(opp.corruption)}%</span>
+              </div>
+              <div class="opponent-mini-stat">
                 <span class="opp-label">🪖 Reserva</span>
                 <span>${opp.military}</span>
               </div>
@@ -499,20 +515,30 @@ export class GameUI {
             
             <div class="tactical-map">
               <svg class="map-connections" viewBox="0 0 100 100" preserveAspectRatio="none">
-                <line x1="50" y1="15" x2="50" y2="45" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
-                <line x1="50" y1="15" x2="75" y2="20" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
-                <line x1="50" y1="15" x2="25" y2="20" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
-                <line x1="50" y1="45" x2="20" y2="45" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
-                <line x1="50" y1="45" x2="80" y2="45" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
-                <line x1="50" y1="45" x2="75" y2="20" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
-                <line x1="50" y1="45" x2="25" y2="20" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
-                <line x1="50" y1="45" x2="50" y2="75" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
-                <line x1="75" y1="20" x2="80" y2="45" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
-                <line x1="80" y1="45" x2="75" y2="70" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
-                <line x1="75" y1="70" x2="50" y2="75" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
-                <line x1="50" y1="75" x2="25" y2="70" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
-                <line x1="25" y1="70" x2="20" y2="45" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
-                <line x1="20" y1="45" x2="25" y2="20" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>
+                ${(function(){
+                  const MAP_LAYOUT = {
+                    capital: {x: 50, y: 45}, norte_lejano: {x: 50, y: 5}, norte: {x: 50, y: 20}, frontera_norte: {x: 75, y: 25}, desierto_norte: {x: 25, y: 25},
+                    costa: {x: 15, y: 45}, industrial: {x: 80, y: 45}, delta: {x: 30, y: 65}, selva: {x: 70, y: 65}, sur: {x: 50, y: 80},
+                    islas_lejanas: {x: 15, y: 80}, archipielago: {x: 25, y: 95}, estepa: {x: 85, y: 85}, meseta: {x: 15, y: 10},
+                    ruinas: {x: 85, y: 10}, yacimiento: {x: 50, y: 60}
+                  };
+                  const MAP_EDGES = [
+                    ['norte_lejano','norte'], ['norte_lejano','meseta'], ['norte_lejano','ruinas'],
+                    ['norte','capital'], ['norte','frontera_norte'], ['norte','desierto_norte'],
+                    ['desierto_norte','costa'], ['desierto_norte','meseta'],
+                    ['frontera_norte','industrial'], ['frontera_norte','ruinas'],
+                    ['costa','delta'], ['capital','costa'], ['capital','industrial'], ['capital','yacimiento'],
+                    ['industrial','selva'], ['yacimiento','delta'], ['yacimiento','selva'], ['yacimiento','sur'],
+                    ['delta','islas_lejanas'], ['selva','estepa'], ['sur','delta'], ['sur','selva'], 
+                    ['sur','archipielago'], ['sur','estepa'], ['islas_lejanas','archipielago']
+                  ];
+                  return MAP_EDGES.map(e => {
+                    const n1 = MAP_LAYOUT[e[0]];
+                    const n2 = MAP_LAYOUT[e[1]];
+                    if(!n1 || !n2) return '';
+                    return `<line x1="${n1.x}" y1="${n1.y}" x2="${n2.x}" y2="${n2.y}" stroke="rgba(255,255,255,0.15)" stroke-width="0.3" stroke-dasharray="1,1"/>`;
+                  }).join('');
+                })()}
               </svg>
               ${g.regions.map(r => this._renderRegionCard(r)).join('')}
             </div>
@@ -548,11 +574,13 @@ export class GameUI {
               const affordable = isMyTurn && canAfford(g, a.id) && g.actionsLeft > 0;
               const regionSelected = !needsRegion || this.selectedRegion;
               const disabled = !affordable || !regionSelected || (a.id === 'combat' && g.peaceDuration > 0);
+              
+              const currentCost = getActionCost(g, a.id, this.myIndex);
               let costStr = [];
-              if(a.cost?.money) costStr.push(`$${a.cost.money}`);
-              if(a.cost?.resources) costStr.push(`${a.cost.resources}📡`);
-              if(a.cost?.military) costStr.push(`${a.cost.military}🪖`);
-              if(a.cost?.popularity) costStr.push(`${a.cost.popularity}⭐`);
+              if(currentCost.money) costStr.push(`$${currentCost.money}`);
+              if(currentCost.resources) costStr.push(`${currentCost.resources}📡`);
+              if(currentCost.military) costStr.push(`${currentCost.military}🪖`);
+              if(currentCost.popularity) costStr.push(`${currentCost.popularity}⭐`);
               const parts = a.name.split(' ');
               const icon = parts[0];
               const title = parts.slice(1).join(' ');
@@ -695,18 +723,14 @@ export class GameUI {
   }
 
   _renderRegionCard(region) {
-    const coords = {
-      capital: 'top: 45%; left: 50%;',
-      norte: 'top: 15%; left: 50%;',
-      sur: 'top: 75%; left: 50%;',
-      costa: 'top: 45%; left: 20%;',
-      industrial: 'top: 45%; left: 80%;',
-      frontera: 'top: 20%; left: 75%;',
-      selva: 'top: 70%; left: 75%;',
-      desierto: 'top: 20%; left: 25%;',
-      islas: 'top: 70%; left: 25%;'
+    const MAP_LAYOUT = {
+      capital: {x: 50, y: 45}, norte_lejano: {x: 50, y: 5}, norte: {x: 50, y: 20}, frontera_norte: {x: 75, y: 25}, desierto_norte: {x: 25, y: 25},
+      costa: {x: 15, y: 45}, industrial: {x: 80, y: 45}, delta: {x: 30, y: 65}, selva: {x: 70, y: 65}, sur: {x: 50, y: 80},
+      islas_lejanas: {x: 15, y: 80}, archipielago: {x: 25, y: 95}, estepa: {x: 85, y: 85}, meseta: {x: 15, y: 10},
+      ruinas: {x: 85, y: 10}, yacimiento: {x: 50, y: 60}
     };
-    const inlineStyle = coords[region.id] || '';
+    const c = MAP_LAYOUT[region.id] || {x:50, y:50};
+    const inlineStyle = `top: ${c.y}%; left: ${c.x}%;`;
 
     const owner = getRegionOwner(region);
     const ownerClass = owner === 0 ? 'player-0' : owner === 1 ? 'player-1' : 'neutral';
