@@ -430,6 +430,7 @@ export class GameUI {
                 <span class="pw-dot" style="background:var(--blue-light);"></span>
               </div>
             </div>
+            ${g.peaceDuration > 0 ? `<div style="text-align:center;color:var(--gold);font-size:0.75rem;margin-top:4px;">🕊️ Tregua Internacional activa (${g.peaceDuration} turnos)</div>` : ''}
           </div>
           <div class="topbar-right">
             <div class="turn-badge ${isMyTurn ? 'my-turn' : 'not-my-turn'}">
@@ -444,24 +445,34 @@ export class GameUI {
         <div class="game-body">
           <!-- LEFT SIDEBAR: My Stats -->
           <div class="sidebar-left">
-            <div class="stat-card card">
-              <div class="stat-label"><span class="stat-icon">💰</span> Dinero</div>
-              <div class="stat-value" style="color: var(--gold-light);">$${me.money}</div>
-            </div>
-            <div class="stat-card card">
-              <div class="stat-label"><span class="stat-icon">⭐</span> Popularidad</div>
-              <div class="stat-value" style="color: var(--green-light);">${me.popularity}%</div>
-              <div class="stat-bar">
-                <div class="stat-bar-fill" style="width:${me.popularity}%; background: var(--green);"></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              <div class="stat-card card">
+                <div class="stat-label"><span class="stat-icon">💰</span> Dinero</div>
+                <div class="stat-value" style="color: var(--gold-light);">$${me.money}</div>
+              </div>
+              <div class="stat-card card">
+                <div class="stat-label"><span class="stat-icon">⭐</span> Popular</div>
+                <div class="stat-value" style="color: var(--green-light);">${me.popularity}%</div>
+              </div>
+              <div class="stat-card card">
+                <div class="stat-label"><span class="stat-icon">🪖</span> Ejército</div>
+                <div class="stat-value" style="color: var(--red-light);">${me.military}</div>
+              </div>
+              <div class="stat-card card">
+                <div class="stat-label"><span class="stat-icon">🛢️</span> Recursos</div>
+                <div class="stat-value" style="color: var(--text);">${me.resources}</div>
               </div>
             </div>
-            <div class="stat-card card">
-              <div class="stat-label"><span class="stat-icon">🗺️</span> Regiones</div>
-              <div class="stat-value" style="color: var(--gold);">${myRegions} / ${g.regions.length}</div>
-            </div>
-            <div class="stat-card card">
-              <div class="stat-label"><span class="stat-icon">🎬</span> Acciones</div>
-              <div class="stat-value" style="color: ${isMyTurn ? 'var(--gold-light)' : 'var(--text-muted)'};">${isMyTurn ? g.actionsLeft : '-'}</div>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:4px;">
+              <div class="stat-card card">
+                <div class="stat-label"><span class="stat-icon">🗺️</span> Regiones</div>
+                <div class="stat-value" style="color: var(--gold);">${myRegions} / ${g.regions.length}</div>
+              </div>
+              <div class="stat-card card">
+                <div class="stat-label"><span class="stat-icon">🎬</span> Acciones</div>
+                <div class="stat-value" style="color: ${isMyTurn ? 'var(--gold-light)' : 'var(--text-muted)'};">${isMyTurn ? g.actionsLeft : '-'}</div>
+              </div>
             </div>
 
             <!-- Opponent mini stats -->
@@ -472,12 +483,16 @@ export class GameUI {
                 <span>$${opp.money}</span>
               </div>
               <div class="opponent-mini-stat">
-                <span class="opp-label">⭐ Popularidad</span>
+                <span class="opp-label">⭐ Popular</span>
                 <span>${opp.popularity}%</span>
               </div>
               <div class="opponent-mini-stat">
-                <span class="opp-label">🗺️ Regiones</span>
-                <span>${oppRegions}</span>
+                <span class="opp-label">🪖 Ejército</span>
+                <span>${opp.military}</span>
+              </div>
+              <div class="opponent-mini-stat">
+                <span class="opp-label">🛢️ Recursos</span>
+                <span>${opp.resources}</span>
               </div>
             </div>
           </div>
@@ -507,17 +522,24 @@ export class GameUI {
 
           <!-- RIGHT SIDEBAR: Actions -->
           <div class="sidebar-right">
-            <div class="actions-title">⚡ Acciones${isMyTurn ? ` (${g.actionsLeft} restantes)` : ''}</div>
+            <div class="actions-title">⚡ Políticas${isMyTurn ? ` (${g.actionsLeft} restantes)` : ''}</div>
             ${actions.map(a => {
-              const needsRegion = ['campaign', 'bribe', 'rally'].includes(a.id);
+              const needsRegion = a.needsRegion;
               const affordable = isMyTurn && canAfford(g, a.id) && g.actionsLeft > 0;
               const regionSelected = !needsRegion || this.selectedRegion;
-              const disabled = !affordable || !regionSelected;
+              const disabled = !affordable || !regionSelected || (a.id === 'invasion' && g.peaceDuration > 0);
+              
+              let costStr = [];
+              if(a.cost?.money) costStr.push(`$${a.cost.money}`);
+              if(a.cost?.resources) costStr.push(`${a.cost.resources}🛢️`);
+              if(a.cost?.military) costStr.push(`${a.cost.military}🪖`);
+              if(a.cost?.popularity) costStr.push(`${a.cost.popularity}⭐`);
+              
               return `
                 <div class="action-card card ${disabled ? 'disabled' : ''}" data-action="${a.id}">
                   <div class="action-name">${a.name}</div>
-                  <div class="action-desc">${a.desc}${needsRegion && !this.selectedRegion && isMyTurn ? ' <em style="color:var(--gold);">(selecciona región)</em>' : ''}</div>
-                  <div class="action-cost">${a.cost.money > 0 ? `Costo: $${a.cost.money}` : 'Gratis'}</div>
+                  <div class="action-desc">${a.desc}${needsRegion && !this.selectedRegion && isMyTurn ? ' <em style="color:var(--gold);">(selecciona mapa)</em>' : ''}</div>
+                  <div class="action-cost">${costStr.length > 0 ? `Costo: ${costStr.join(' + ')}` : 'Gratis'}</div>
                 </div>
               `;
             }).join('')}
@@ -723,7 +745,10 @@ export class GameUI {
   }
 
   _doAction(actionId) {
-    const needsRegion = ['campaign', 'bribe', 'rally'].includes(actionId);
+    const actionDef = getActions().find(a => a.id === actionId);
+    if (!actionDef) return;
+    
+    const needsRegion = actionDef.needsRegion;
     const regionId = needsRegion ? this.selectedRegion : null;
 
     if (needsRegion && !regionId) {

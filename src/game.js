@@ -1,26 +1,28 @@
 /**
  * PODER & GLORIA — Game Engine
  * Manages all game state, regions, resources, and turn logic.
+ * Geopolitics Edition: Trade, War, Resources, Peace Treaties.
  */
 
 const REGIONS = [
-  { id: 'capital',    name: 'La Capital',        population: 12, icon: '🏛️' },
-  { id: 'norte',      name: 'Región Norte',      population: 8,  icon: '🏔️' },
-  { id: 'sur',        name: 'Región Sur',        population: 7,  icon: '🌾' },
-  { id: 'costa',      name: 'Costa Dorada',      population: 9,  icon: '🏖️' },
-  { id: 'industrial', name: 'Zona Industrial',   population: 10, icon: '🏭' },
-  { id: 'frontera',   name: 'La Frontera',       population: 6,  icon: '🛡️' },
-  { id: 'selva',      name: 'Selva Profunda',    population: 5,  icon: '🌿' },
-  { id: 'desierto',   name: 'El Desierto',       population: 4,  icon: '🏜️' },
-  { id: 'islas',      name: 'Las Islas',         population: 3,  icon: '🏝️' },
+  { id: 'capital',    name: 'La Capital',        population: 12, icon: '🏛️', prod: { money: 12, resources: 2 } },
+  { id: 'norte',      name: 'Región Norte',      population: 8,  icon: '🏔️', prod: { money: 4, resources: 10 } },
+  { id: 'sur',        name: 'Región Sur',        population: 7,  icon: '🌾', prod: { money: 6, resources: 8 } },
+  { id: 'costa',      name: 'Costa Dorada',      population: 9,  icon: '🏖️', prod: { money: 15, resources: 0 } },
+  { id: 'industrial', name: 'Zona Industrial',   population: 10, icon: '🏭', prod: { money: 8, resources: 15 } },
+  { id: 'frontera',   name: 'La Frontera',       population: 6,  icon: '🛡️', prod: { money: 4, resources: 5 } },
+  { id: 'selva',      name: 'Selva Profunda',    population: 5,  icon: '🌿', prod: { money: 2, resources: 12 } },
+  { id: 'desierto',   name: 'El Desierto',       population: 4,  icon: '🏜️', prod: { money: 5, resources: 8 } },
+  { id: 'islas',      name: 'Las Islas',         population: 3,  icon: '🏝️', prod: { money: 10, resources: 2 } },
 ];
 
 const ACTIONS = [
   {
     id: 'campaign',
-    name: '📢 Campaña',
-    desc: 'Haz campaña en una región para ganar influencia.',
+    name: '📢 Campaña Política',
+    desc: 'Haz campaña pacífica en una región para ganar influencia civil.',
     cost: { money: 10 },
+    needsRegion: true,
     effect: (game, region) => {
       const amount = 12 + Math.floor(Math.random() * 8);
       region.influence[game.currentTurn] = Math.min(100, (region.influence[game.currentTurn] || 0) + amount);
@@ -28,80 +30,129 @@ const ACTIONS = [
     }
   },
   {
-    id: 'advertise',
-    name: '📺 Publicidad',
-    desc: 'Lanza anuncios para ganar popularidad global.',
-    cost: { money: 20 },
+    id: 'propaganda',
+    name: '📺 Propaganda Global',
+    desc: 'Medios masivos para ganar apoyo popular nacional.',
+    cost: { money: 15, resources: 5 },
+    needsRegion: false,
     effect: (game) => {
-      const amount = 8 + Math.floor(Math.random() * 7);
+      const amount = 10 + Math.floor(Math.random() * 5);
       game.players[game.currentTurn].popularity = Math.min(100, game.players[game.currentTurn].popularity + amount);
-      return `📺 Publicidad lanzada: +${amount} popularidad`;
+      return `📺 Propaganda lanzada: +${amount}% popularidad`;
     }
   },
   {
     id: 'bribe',
-    name: '💰 Soborno',
-    desc: 'Usa dinero para robar influencia al oponente en una región.',
+    name: '💰 Corrupción Regional',
+    desc: 'Paga para desestabilizar la influencia rival en una zona.',
     cost: { money: 30 },
+    needsRegion: true,
     effect: (game, region) => {
       const opp = game.currentTurn === 0 ? 1 : 0;
-      const stolen = Math.min(region.influence[opp] || 0, 10 + Math.floor(Math.random() * 10));
+      const stolen = Math.min(region.influence[opp] || 0, 15 + Math.floor(Math.random() * 10));
       region.influence[opp] = Math.max(0, (region.influence[opp] || 0) - stolen);
-      region.influence[game.currentTurn] = Math.min(100, (region.influence[game.currentTurn] || 0) + Math.floor(stolen * 0.6));
-      return `💰 Soborno en ${region.name}: -${stolen} rival, +${Math.floor(stolen * 0.6)} tuyo`;
+      region.influence[game.currentTurn] = Math.min(100, (region.influence[game.currentTurn] || 0) + Math.floor(stolen * 0.5));
+      return `💰 Corrupción en ${region.name}: -${stolen} rival, +${Math.floor(stolen * 0.5)} tuyo`;
     }
   },
   {
-    id: 'scandal',
-    name: '🗞️ Escándalo',
-    desc: 'Difunde un escándalo que reduce la popularidad del rival.',
-    cost: { money: 25 },
+    id: 'military_build',
+    name: '🛡️ Armamentismo',
+    desc: 'Convierte tus recursos en poderío militar para atacar.',
+    cost: { money: 10, resources: 20 },
+    needsRegion: false,
+    effect: (game) => {
+      const pts = 15 + Math.floor(Math.random() * 10);
+      game.players[game.currentTurn].military = Math.min(100, game.players[game.currentTurn].military + pts);
+      return `🛡️ Armamentismo: +${pts} poder militar equipado`;
+    }
+  },
+  {
+    id: 'invasion',
+    name: '⚔️ Invasión Armada',
+    desc: 'Toma el control a la fuerza. Reduce popularidad y cuesta ejército.',
+    cost: { military: 30 },
+    needsRegion: true,
+    effect: (game, region) => {
+      if (game.peaceDuration > 0) return `⚠️ Invasión fallida: Tratado de paz vigente.`;
+      
+      const opp = game.currentTurn === 0 ? 1 : 0;
+      region.influence[game.currentTurn] = 100;
+      region.influence[opp] = 0;
+      
+      // Costo ético de la guerra
+      game.players[game.currentTurn].popularity = Math.max(0, game.players[game.currentTurn].popularity - 15);
+      
+      return `⚔️ ¡INVASIÓN EXITOSA en ${region.name}! Pierdes 15% popularidad mundial.`;
+    }
+  },
+  {
+    id: 'peace_treaty',
+    name: '🕊️ Imponer Tregua',
+    desc: 'La ONU obliga a un cese al fuego por 2 rondas. Nadie puede invadir.',
+    cost: { money: 25, popularity: 10 },
+    needsRegion: false,
+    effect: (game) => {
+      game.peaceDuration = 2;
+      return `🕊️ Tregua Internacional firmada. Prohibido invadir por 2 rondas.`;
+    }
+  },
+  {
+    id: 'trade',
+    name: '📦 Tratado Comercial',
+    desc: 'Vende tus reservas de recursos en el mercado global por oro.',
+    cost: { resources: 30 },
+    needsRegion: false,
+    effect: (game) => {
+      const gold = 40 + Math.floor(Math.random() * 20);
+      game.players[game.currentTurn].money += gold;
+      return `📦 Comercio exitoso: 30 Recursos exportados por $${gold}`;
+    }
+  },
+  {
+    id: 'mine',
+    name: '⛏️ Explotación Intensiva',
+    desc: 'Sacrifica algo de popularidad para extraer recursos rápidamente.',
+    cost: { popularity: 5 },
+    needsRegion: false,
+    effect: (game) => {
+      const res = 25 + Math.floor(Math.random() * 15);
+      game.players[game.currentTurn].resources += res;
+      return `⛏️ Explotación intensiva: +${res} recursos extraídos.`;
+    }
+  },
+  {
+    id: 'embargo',
+    name: '🛑 Embargo Económico',
+    desc: 'Sanciona fuertemente la economía y recursos del enemigo.',
+    cost: { money: 40, popularity: 10 },
+    needsRegion: false,
     effect: (game) => {
       const opp = game.currentTurn === 0 ? 1 : 0;
-      const damage = 10 + Math.floor(Math.random() * 10);
-      game.players[opp].popularity = Math.max(0, game.players[opp].popularity - damage);
-      return `🗞️ ¡Escándalo! El rival pierde ${damage} popularidad`;
+      const resDamage = 30 + Math.floor(Math.random() * 20);
+      const moneyDamage = 20 + Math.floor(Math.random() * 15);
+      
+      game.players[opp].resources = Math.max(0, game.players[opp].resources - resDamage);
+      game.players[opp].money = Math.max(0, game.players[opp].money - moneyDamage);
+      
+      return `🛑 Sanciones al enemigo: Pierden $${moneyDamage} y ${resDamage} Recursos.`;
     }
-  },
-  {
-    id: 'fundraise',
-    name: '🏦 Recaudar',
-    desc: 'Organiza un evento para recaudar fondos.',
-    cost: { money: 0 },
-    effect: (game) => {
-      const amount = 15 + Math.floor(Math.random() * 15);
-      game.players[game.currentTurn].money += amount;
-      return `🏦 Recaudación exitosa: +$${amount}`;
-    }
-  },
-  {
-    id: 'rally',
-    name: '✊ Mitin',
-    desc: 'Realiza un mitin que gana influencia y popularidad moderada.',
-    cost: { money: 15 },
-    effect: (game, region) => {
-      const inf = 8 + Math.floor(Math.random() * 5);
-      const pop = 4 + Math.floor(Math.random() * 4);
-      region.influence[game.currentTurn] = Math.min(100, (region.influence[game.currentTurn] || 0) + inf);
-      game.players[game.currentTurn].popularity = Math.min(100, game.players[game.currentTurn].popularity + pop);
-      return `✊ Mitin en ${region.name}: +${inf} influencia, +${pop} popularidad`;
-    }
-  },
+  }
 ];
 
-const MAX_ROUNDS = 10;
+const MAX_ROUNDS = 12; // Extend to 12 giving time for more complex geopolitics
 const ACTIONS_PER_TURN = 2;
 
 export function createGameState(player0Name, player1Name) {
   const regions = REGIONS.map(r => ({
     ...r,
-    influence: [0, 0], // [player0, player1]
+    influence: { 0: 0, 1: 0 } // Player 0 and Player 1 influence %
   }));
 
   return {
     players: [
-      { name: player0Name, money: 50, popularity: 30, color: 'gold' },
-      { name: player1Name, money: 50, popularity: 30, color: 'blue' },
+      { name: player0Name, money: 60, popularity: 50, military: 10, resources: 20, color: 'gold' },
+      { name: player1Name, money: 60, popularity: 50, military: 10, resources: 20, color: 'blue' },
     ],
     regions,
     currentTurn: 0,      // 0 or 1
@@ -110,6 +161,7 @@ export function createGameState(player0Name, player1Name) {
     log: [],
     gameOver: false,
     winner: null,
+    peaceDuration: 0,    // rounds left of forced peace
   };
 }
 
@@ -129,7 +181,15 @@ export function canAfford(game, actionId) {
   const action = ACTIONS.find(a => a.id === actionId);
   if (!action) return false;
   const player = game.players[game.currentTurn];
-  return player.money >= (action.cost.money || 0);
+  
+  const m = action.cost?.money || 0;
+  const p = action.cost?.popularity || 0;
+  const r = action.cost?.resources || 0;
+  const mil = action.cost?.military || 0;
+  
+  if (actionId === 'invasion' && game.peaceDuration > 0) return false; // Peace treaties block invasion outright
+  
+  return player.money >= m && player.popularity >= p && player.resources >= r && player.military >= mil;
 }
 
 export function performAction(game, actionId, regionId) {
@@ -138,11 +198,13 @@ export function performAction(game, actionId, regionId) {
   if (game.actionsLeft <= 0) return null;
 
   const player = game.players[game.currentTurn];
-  player.money -= (action.cost.money || 0);
+  player.money -= (action.cost?.money || 0);
+  player.popularity -= (action.cost?.popularity || 0);
+  player.resources -= (action.cost?.resources || 0);
+  player.military -= (action.cost?.military || 0);
 
   const region = regionId ? game.regions.find(r => r.id === regionId) : null;
-  const needsRegion = ['campaign', 'bribe', 'rally'].includes(actionId);
-  if (needsRegion && !region) return null;
+  if (action.needsRegion && !region) return null;
 
   const message = action.effect(game, region);
   game.actionsLeft -= 1;
@@ -159,111 +221,96 @@ export function performAction(game, actionId, regionId) {
 }
 
 export function endTurn(game) {
-  // Give passive income
-  const current = game.players[game.currentTurn];
-  const regionsOwned = countRegions(game, game.currentTurn);
-  current.money += 5 + regionsOwned * 3;
+  if (game.gameOver) return;
 
-  // Popularity decay
-  game.players.forEach(p => {
-    p.popularity = Math.max(0, p.popularity - 2);
-  });
-
-  // Switch turn
+  // Process end of round if it was player 1's turn
   if (game.currentTurn === 1) {
     game.round += 1;
+    
+    // Decrement peace duration
+    if (game.peaceDuration > 0) {
+      game.peaceDuration -= 1;
+      if (game.peaceDuration === 0) {
+        game.log.push({ round: game.round, player: -1, message: '🕊️ El tratado de paz ha expirado. Hay riesgo de invasiones.', isEvent: true });
+      }
+    }
+
+    // Passive Economy: compute yields based on controlled regions
+    [0, 1].forEach(playerIdx => {
+      let turnMoney = 0;
+      let turnRes = 0;
+      game.regions.forEach(r => {
+        if (getRegionOwner(r) === playerIdx) {
+          turnMoney += r.prod.money;
+          turnRes += r.prod.resources;
+        }
+      });
+      
+      // Minimum passive income
+      turnMoney += 10;
+      turnRes += 5;
+      
+      game.players[playerIdx].money += turnMoney;
+      game.players[playerIdx].resources += turnRes;
+    });
+
+    game.log.push({ round: game.round, player: -1, message: '🏦 Economía: Recursos y dinero recaudados por territorios.', isEvent: true });
+    
+    game.lastEvent = triggerRandomEvent(game);
   }
+
   game.currentTurn = game.currentTurn === 0 ? 1 : 0;
   game.actionsLeft = ACTIONS_PER_TURN;
 
-  // Check game over
   if (game.round > MAX_ROUNDS) {
     game.gameOver = true;
     game.winner = determineWinner(game);
   }
-
-  // Trigger a random event at start of each round (when switching to player 0)
-  if (game.currentTurn === 0 && !game.gameOver && game.round > 1) {
-    const event = triggerRandomEvent(game);
-    if (event) {
-      game.lastEvent = event;
-    }
-  }
-
-  return game;
 }
 
 // ===== RANDOM EVENTS =====
 const RANDOM_EVENTS = [
   {
-    name: '📰 Escándalo Mediático',
-    desc: 'Los medios publican un escándalo que afecta al jugador con más popularidad.',
-    effect: (game) => {
-      const target = game.players[0].popularity >= game.players[1].popularity ? 0 : 1;
-      const loss = 5 + Math.floor(Math.random() * 8);
-      game.players[target].popularity = Math.max(0, game.players[target].popularity - loss);
-      return `${game.players[target].name} pierde ${loss} popularidad por escándalo mediático`;
-    }
-  },
-  {
-    name: '💹 Boom Económico',
-    desc: 'La economía prospera. Ambos jugadores ganan dinero extra.',
-    effect: (game) => {
-      const bonus = 10 + Math.floor(Math.random() * 10);
-      game.players[0].money += bonus;
-      game.players[1].money += bonus;
-      return `Boom económico: ambos jugadores ganan +$${bonus}`;
-    }
-  },
-  {
-    name: '🪧 Protesta Popular',
-    desc: 'Una protesta estalla en una región aleatoria, reduciendo la influencia dominante.',
-    effect: (game) => {
-      const region = game.regions[Math.floor(Math.random() * game.regions.length)];
-      const owner = getRegionOwner(region);
-      if (owner >= 0) {
-        const loss = 8 + Math.floor(Math.random() * 10);
-        region.influence[owner] = Math.max(0, region.influence[owner] - loss);
-        return `Protesta en ${region.name}: ${game.players[owner].name} pierde ${loss} influencia`;
-      }
-      return `Protesta en ${region.name}, pero no tiene efecto (neutral)`;
-    }
-  },
-  {
-    name: '🤝 Alianza Inesperada',
-    desc: 'Un grupo político independiente apoya al jugador con menos regiones.',
-    effect: (game) => {
-      const r0 = countRegions(game, 0);
-      const r1 = countRegions(game, 1);
-      const target = r0 <= r1 ? 0 : 1;
-      const region = game.regions[Math.floor(Math.random() * game.regions.length)];
-      const boost = 10 + Math.floor(Math.random() * 8);
-      region.influence[target] = Math.min(100, (region.influence[target] || 0) + boost);
-      return `Alianza inesperada: ${game.players[target].name} gana +${boost} influencia en ${region.name}`;
-    }
-  },
-  {
-    name: '🏦 Crisis Financiera',
-    desc: 'Una crisis reduce el dinero del jugador más rico.',
+    name: '📉 Devaluación Global',
+    desc: 'Los mercados caen bruscamente. Cuesta dinero a la superpotencia.',
     effect: (game) => {
       const target = game.players[0].money >= game.players[1].money ? 0 : 1;
-      const loss = Math.floor(game.players[target].money * 0.2);
+      const loss = Math.floor(game.players[target].money * 0.3);
       game.players[target].money = Math.max(0, game.players[target].money - loss);
-      return `Crisis financiera: ${game.players[target].name} pierde $${loss}`;
+      return `El Banco Central falló. ${game.players[target].name} pierde $${loss}`;
     }
   },
   {
-    name: '🎉 Fiesta Nacional',
-    desc: 'Día festivo. Ambos jugadores ganan un poco de popularidad.',
+    name: '🚀 Avance Tecnológico',
+    desc: 'Se descubre un nuevo filón. Ambos jugadores ganan recursos masivos.',
     effect: (game) => {
-      const bonus = 3 + Math.floor(Math.random() * 5);
-      game.players[0].popularity = Math.min(100, game.players[0].popularity + bonus);
-      game.players[1].popularity = Math.min(100, game.players[1].popularity + bonus);
-      return `¡Fiesta Nacional! Ambos ganan +${bonus} popularidad`;
+      const bonus = 30 + Math.floor(Math.random() * 20);
+      game.players[0].resources += bonus;
+      game.players[1].resources += bonus;
+      return `Boom tecnológico: Ambos ganan +${bonus} Recursos`;
     }
   },
-  null, // No event this round
-  null, // No event — quiet round
+  {
+    name: '🪧 Rebelión Civil',
+    desc: 'Una región neutraliza su influencia debido a una fuerte insurrección civil.',
+    effect: (game) => {
+      const region = game.regions[Math.floor(Math.random() * game.regions.length)];
+      region.influence[0] = Math.floor(region.influence[0] * 0.5);
+      region.influence[1] = Math.floor(region.influence[1] * 0.5);
+      return `Rebelión en ${region.name}: la influencia de ambos bandos se redujo a la mitad.`;
+    }
+  },
+  {
+    name: '🏅 General Heroico',
+    desc: 'Un general famoso se une al jugador con menos poder armamentístico.',
+    effect: (game) => {
+      const target = game.players[0].military <= game.players[1].military ? 0 : 1;
+      const boost = 25 + Math.floor(Math.random() * 15);
+      game.players[target].military = Math.min(100, game.players[target].military + boost);
+      return `Llegada de héroe: ${game.players[target].name} obtiene +${boost} Ejército gratuitamente`;
+    }
+  },
+  null, null, null // 3/7 chance of blank event
 ];
 
 export function triggerRandomEvent(game) {
@@ -302,12 +349,15 @@ export function determineWinner(game) {
   // tiebreaker: popularity
   if (game.players[0].popularity > game.players[1].popularity) return 0;
   if (game.players[1].popularity > game.players[0].popularity) return 1;
-  // money tiebreaker
-  return game.players[0].money >= game.players[1].money ? 0 : 1;
+  // money + resources + military tiebreaker
+  const v0 = game.players[0].money + game.players[0].resources + game.players[0].military;
+  const v1 = game.players[1].money + game.players[1].resources + game.players[1].military;
+  return v0 >= v1 ? 0 : 1;
 }
 
 export function getTotalScore(game, playerIndex) {
   const regions = countRegions(game, playerIndex);
   const pop = game.players[playerIndex].popularity;
-  return regions * 10 + pop;
+  const assets = Math.floor((game.players[playerIndex].money + game.players[playerIndex].military + game.players[playerIndex].resources) / 10);
+  return (regions * 20) + pop + assets;
 }
