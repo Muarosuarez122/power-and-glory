@@ -1,28 +1,26 @@
 /* ===== PODER & GLORIA — Design System ===== */
 :root {
   /* Colors */
-  --bg-dark: #0a0c14;
-  --bg-panel: rgba(15, 18, 32, 0.85);
-  --bg-card: rgba(22, 26, 48, 0.9);
-  --bg-hover: rgba(35, 40, 68, 0.9);
-  --gold: #3498db;
-  --gold-light: #5dade2;
-  --gold-dim: #21618c;
+  --bg-dark: #040608;
+  --bg-panel: rgba(8, 10, 15, 0.96);
+  --bg-card: rgba(15, 20, 28, 0.9);
+  --bg-hover: rgba(25, 35, 45, 0.95);
+  --gold: #e67e22;
+  --gold-light: #f39c12;
+  --gold-dim: #d35400;
+  --blue: #2980b9;
+  --blue-light: #3498db;
   --red: #c0392b;
   --red-light: #e74c3c;
-  --blue: #c0392b;      /* Repurposed as Rebel Red */
-  --blue-light: #e74c3c; /* Repurposed as Rebel Red */
   --green: #27ae60;
   --green-light: #2ecc71;
-  --purple: #8e44ad;
-  --purple-light: #9b59b6;
-  --text: #e8e6e3;
-  --text-dim: #8a8d9b;
-  --text-muted: #555869;
-  --border: rgba(52, 152, 219, 0.25);
-  --border-bright: rgba(52, 152, 219, 0.45);
-  --shadow: 0 8px 32px rgba(0,0,0,0.5);
-  --shadow-gold: 0 0 30px rgba(52, 152, 219, 0.2);
+  --text: #f0f2f5;
+  --text-dim: #94a3b8;
+  --text-muted: #475569;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-bright: rgba(255, 255, 255, 0.15);
+  --shadow: 0 10px 40px rgba(0,0,0,0.8);
+  --shadow-gold: 0 0 40px rgba(243, 156, 18, 0.15);
 
   /* Typography */
   --font: 'Outfit', sans-serif;
@@ -60,6 +58,15 @@ body {
   position: relative;
   overflow: hidden;
 }
+#app::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+  background-size: 100% 3px, 3px 100%;
+  pointer-events: none;
+  z-index: 1000;
+}
 
 /* ===== Background ===== */
 .bg-pattern {
@@ -67,10 +74,19 @@ body {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(212,168,67,0.06), transparent 60%),
-    radial-gradient(ellipse 60% 50% at 80% 90%, rgba(41,128,185,0.05), transparent 50%),
-    radial-gradient(ellipse 40% 40% at 50% 50%, rgba(142,68,173,0.04), transparent 50%);
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.03) 1.5px, transparent 1.5px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1.5px, transparent 1.5px);
+  background-size: 80px 80px;
+  background-position: center;
+  mask-image: radial-gradient(circle at center, black, transparent 85%);
+}
+.bg-pattern::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 10% 10%, rgba(52, 152, 219, 0.05) 0%, transparent 40%),
+              radial-gradient(circle at 90% 90%, rgba(231, 76, 60, 0.05) 0%, transparent 40%);
 }
 
 /* ===== Buttons ===== */
@@ -555,8 +571,8 @@ body {
   transition: all 0.3s;
 }
 .region-node:hover .node-inner { filter: brightness(1.2); }
-.region-node.player-0 .node-inner { border-color: var(--gold); box-shadow: 0 0 15px rgba(212,168,67,0.3); }
-.region-node.player-1 .node-inner { border-color: var(--blue-light); box-shadow: 0 0 15px rgba(52,152,219,0.3); }
+.region-node.player-0 .node-inner { border-color: var(--blue-light); box-shadow: 0 0 15px rgba(52,152,219,0.3); }
+.region-node.player-1 .node-inner { border-color: var(--red-light); box-shadow: 0 0 15px rgba(231,76,60,0.3); }
 .region-node.selected .node-inner { border-color: #fff; box-shadow: 0 0 25px rgba(255,255,255,0.6); }
 .node-icon { font-size: 1.4rem; z-index: 3; }
 

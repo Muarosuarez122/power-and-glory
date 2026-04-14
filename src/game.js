@@ -127,26 +127,54 @@ const ACTIONS = [
     id: 'export',
     faction: 'all',
     name: '🚢 Exportar Materias Primas',
-    desc: 'Aprovecha el Mercado Bilateral. Convierte Material/Inteligencia en Dólares.',
+    desc: 'Bilateral. Convierte Inteligencia en Dólares.',
     cost: { resources: 15 },
     needsRegion: false,
     effect: (game, region, myRef) => {
       game.players[myRef].money += 30;
-      return `🚢 El cargamento zarpó. Intercambio: +$30 de Presupuesto.`;
+      return `🚢 +$30 de Presupuesto.`;
     }
   },
   {
     id: 'import',
     faction: 'all',
     name: '🔬 Importar Tecnología',
-    desc: 'Compra de armamento e Inteligencia a través del Mercado Global.',
+    desc: 'Mercado Global. Compra Inteligencia.',
     cost: { money: 30 },
     needsRegion: false,
     effect: (game, region, myRef) => {
       game.players[myRef].resources += 20;
-      return `🔬 Contenedores recibidos exitosamente. +20 Inteligencia y Tecnologías.`;
+      return `🔬 +20 Inteligencia.`;
+    }
+  },
+  {
+    id: 'referendum',
+    faction: 'all',
+    name: '🗳️ Referéndum de Autodeterminación',
+    desc: 'Gana control político sin violencia. Requiere al menos 60% de influencia previa.',
+    cost: { money: 40, popularity: 15 },
+    needsRegion: true,
+    effect: (game, region, myRef) => {
+      if (region.influence[myRef] < 60) return `❌ El referéndum falló: Necesitas al menos 60% de influencia para convocarlo.`;
+      const opp = myRef === 0 ? 1 : 0;
+      region.influence[myRef] = 100;
+      region.influence[opp] = 0;
+      region.troops[opp] = 0; // Enemy troops leave due to legitimacy
+      return `🗳️ ¡Victoria política! ${region.name} se une legítimamente a tu nación.`;
     }
   }
+];
+
+export const REGIMES = {
+  democracy: { id: 'democracy', name: 'Democracia', icon: '🗳️', desc: 'Baja corrupción, alta legitimidad.', bonus: '+5 Reputación/Turno, -10% Inflación' },
+  autocracy: { id: 'autocracy', name: 'Autocracia', icon: '🦅', desc: 'Fuerza bruta y control estatal.', bonus: '+20% Poder Militar, Operaciones Propias más baratas' },
+  technocracy: { id: 'technocracy', name: 'Tecnocracia', icon: '🔬', desc: 'Eficiencia basada en datos.', bonus: '+25% Producción de Recursos/Inteligencia' }
+};
+
+export const LAWS = [
+  { id: 'martial_law', name: 'Ley Marcial', cost: { popularity: 20 }, desc: 'Estabiliza regiones ocupadas instantáneamente pero hunde la popularidad.' },
+  { id: 'propaganda', name: 'Ministerio de Verdad', cost: { money: 25 }, desc: 'Reduce el impacto de la inflación y la corrupción en la reputación.' },
+  { id: 'tax_haven', name: 'Paraíso Fiscal', cost: { popularity: 10 }, desc: 'Aumenta un 30% los ingresos de Metrópolis.' }
 ];
 
 function executeCombat(game, region, attacker, defender) {
@@ -190,8 +218,18 @@ export function createGameState(player0Name, player1Name) {
 
   return {
     players: [
-      { name: 'Federación del Norte', money: 100, popularity: 100, military: 30, resources: 20, inflation: 0, corruption: 0, color: 'blue' },
-      { name: 'Alianza del Sur', money: 100, popularity: 100, military: 30, resources: 20, inflation: 0, corruption: 0, color: 'red' },
+      { 
+        name: player0Name || 'Federación del Norte', 
+        money: 100, popularity: 100, military: 30, resources: 20, 
+        inflation: 0, corruption: 0, color: 'blue',
+        regime: 'democracy', activeLaws: []
+      },
+      { 
+        name: player1Name || 'Alianza del Sur', 
+        money: 100, popularity: 100, military: 30, resources: 20, 
+        inflation: 0, corruption: 0, color: 'red',
+        regime: 'democracy', activeLaws: []
+      },
     ],
     regions,
     ready: { 0: false, 1: false },
@@ -201,7 +239,100 @@ export function createGameState(player0Name, player1Name) {
     gameOver: false,
     winner: null,
     peaceDuration: 0,
+    diplomacy: 'COLD_WAR',
+    proposals: [],
   };
+}
+
+export function passLaw(game, playerIndex, lawId) {
+  const law = LAWS.find(l => l.id === lawId);
+  if (!law) return false;
+  const p = game.players[playerIndex];
+  
+  if (p.activeLaws.includes(lawId)) return false;
+  if (p.money < (law.cost.money||0) || p.popularity < (law.cost.popularity||0)) return false;
+
+  p.money -= (law.cost.money||0);
+  p.popularity -= (law.cost.popularity||0);
+  p.activeLaws.push(lawId);
+  
+  game.log.push({ 
+    round: game.round, 
+    player: playerIndex, 
+    message: `⚖️ Nueva Ley: ${law.name} ha sido promulgada.`,
+    isEvent: true 
+  });
+  return true;
+}
+
+export function setRegime(game, playerIndex, regimeId) {
+  if (!REGIMES[regimeId]) return false;
+  const p = game.players[playerIndex];
+  p.regime = regimeId;
+  p.popularity = Math.max(0, p.popularity - 30); // Switching regime costs stability
+  
+  game.log.push({ 
+    round: game.round, 
+    player: playerIndex, 
+    message: `🏛️ Cambio de Régimen: ${p.name} ahora es una ${REGIMES[regimeId].name}.`,
+    isEvent: true 
+  });
+  return true;
+}
+
+export function sendProposal(game, fromIdx, type, offer, demand) {
+  const proposal = {
+    id: Date.now().toString(),
+    from: fromIdx,
+    to: fromIdx === 0 ? 1 : 0,
+    type, // 'PEACE', 'TRADE'
+    offer, // { money, resources, military }
+    demand,
+    status: 'PENDING'
+  };
+  game.proposals.push(proposal);
+  return proposal;
+}
+
+export function respondToProposal(game, proposalId, accepted) {
+  const idx = game.proposals.findIndex(p => p.id === proposalId);
+  if (idx === -1) return null;
+  const p = game.proposals[idx];
+  
+  if (accepted) {
+    const fromP = game.players[p.from];
+    const toP = game.players[p.to];
+    
+    // Check if both can afford
+    if (fromP.money >= (p.offer.money||0) && fromP.resources >= (p.offer.resources||0) && 
+        toP.money >= (p.demand.money||0) && toP.resources >= (p.demand.resources||0)) {
+      
+      fromP.money -= (p.offer.money||0);
+      fromP.resources -= (p.offer.resources||0);
+      toP.money += (p.offer.money||0);
+      toP.resources += (p.offer.resources||0);
+      
+      toP.money -= (p.demand.money||0);
+      toP.resources -= (p.demand.resources||0);
+      fromP.money += (p.demand.money||0);
+      fromP.resources += (p.demand.resources||0);
+
+      if (p.type === 'PEACE') {
+        game.diplomacy = 'PEACE';
+        game.peaceDuration = 3;
+      }
+      p.status = 'ACCEPTED';
+    } else {
+      p.status = 'FAILED_FUNDS';
+    }
+  } else {
+    p.status = 'REJECTED';
+  }
+  
+  // Remove after processing
+  const final = {...p};
+  game.proposals.splice(idx, 1);
+  return final;
 }
 
 export function getActions() {
@@ -305,17 +436,44 @@ export function processRoundEnd(game) {
     if (player.inflation > 0) {
       player.inflation = Math.max(0, player.inflation - 15);
     }
+    // Regime & Law effects
+    if (player.regime === 'democracy') {
+      player.popularity = Math.min(100, player.popularity + 5);
+      player.inflation = Math.max(0, player.inflation - 20);
+    }
+    if (player.regime === 'technocracy') {
+      turnRes = Math.floor(turnRes * 1.25);
+    }
+    if (player.activeLaws.includes('tax_haven')) {
+      turnMoney += 15;
+    }
+
     // Corruption penalty
     if (player.corruption > 30) {
-      const cPenalty = Math.floor((player.corruption - 30) / 10);
+      const cPenalty = player.activeLaws.includes('propaganda') ? Math.floor((player.corruption - 30) / 20) : Math.floor((player.corruption - 30) / 10);
       if (cPenalty > 0) {
          player.popularity = Math.max(0, player.popularity - cPenalty);
-         game.log.push({ round: game.round, player: playerIdx, message: `📉 La extrema Corrupción cuesta ${cPenalty} Reputación a ${player.name}.`, isEvent: true });
+         game.log.push({ round: game.round, player: playerIdx, message: `📉 Corrupción cuesta ${cPenalty} Reputación a ${player.name}.`, isEvent: true });
       }
     }
 
     player.money += turnMoney;
     player.resources += turnRes;
+  });
+
+  // INTERNAL REVOLTS & INVASIONS
+  game.regions.forEach(r => {
+    const p0Inf = r.influence[0] || 0;
+    const p1Inf = r.influence[1] || 0;
+    const stable = (p0Inf === 100 || p1Inf === 100);
+
+    if (!stable && Math.random() < 0.2) {
+      // Small chance for a revolt in contested territory
+      const faction = p0Inf > p1Inf ? 1 : 0;
+      const revoltStrength = 5 + Math.floor(Math.random() * 10);
+      r.troops[faction] += revoltStrength;
+      game.log.push({ round: game.round, message: `🔥 Insurrección Local en ${r.name}: +${revoltStrength} milicias contrarias.`, isEvent: true });
+    }
   });
 
   game.log.push({ round: game.round, player: -1, message: '🏦 Economía: Operaciones financieras procesadas.', isEvent: true });
