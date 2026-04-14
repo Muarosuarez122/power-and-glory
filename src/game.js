@@ -39,169 +39,112 @@ export function areAdjacent(id1, id2) {
 }
 
 const ACTIONS = [
-  // --- GOVERNMENT ACTIONS ---
   {
-    id: 'gov_civic',
-    faction: 'gov',
-    name: '🏗️ Iniciativas Civiles',
-    desc: 'Baja hostilidad, sube apoyo gubernamental en la zona.',
+    id: 'civic',
+    faction: 'all',
+    name: '🏗️ Infraestructura Nacional',
+    desc: 'Sube la estabilidad local en 20% y baja la hostilidad rival.',
     cost: { money: 15 },
     needsRegion: true,
-    effect: (game, region) => {
-      region.influence[0] = Math.min(100, (region.influence[0] || 0) + 20);
-      region.influence[1] = Math.max(0, (region.influence[1] || 0) - 15);
-      return `🏗️ Infraestructura civil en ${region.name}: +20% Estabilidad.`;
+    effect: (game, region, myRef) => {
+      const opp = myRef === 0 ? 1 : 0;
+      region.influence[myRef] = Math.min(100, (region.influence[myRef] || 0) + 20);
+      region.influence[opp] = Math.max(0, (region.influence[opp] || 0) - 15);
+      return `🏗️ Infraestructura desarrollada en ${region.name}: +20% Estabilidad.`;
     }
   },
   {
-    id: 'gov_fortify',
-    faction: 'gov',
-    name: '🚧 Montar Frontera',
-    desc: 'Construye defensas. Requiere estar adyacente a territorio hostil.',
+    id: 'fortify',
+    faction: 'all',
+    name: '🚧 Fortificar Frontera',
+    desc: 'Construye defensas. Requiere estar adyacente a territorio enemigo.',
     cost: { money: 20, military: 10 },
     needsRegion: true,
-    effect: (game, region) => {
-      // Must own the region
-      if (getRegionOwner(region) !== 0) return `❌ Operación fallida: Sin control total en la zona.`;
+    effect: (game, region, myRef) => {
+      const opp = myRef === 0 ? 1 : 0;
+      if (getRegionOwner(region) !== myRef) return `❌ Operación fallida: Sin control total en la zona.`;
       
-      // Check adjacency
       let hasHostileNeighbor = false;
       game.regions.forEach(r => {
-        if (areAdjacent(region.id, r.id) && getRegionOwner(r) === 1) {
-          hasHostileNeighbor = true;
-        }
+         if (areAdjacent(region.id, r.id) && getRegionOwner(r) === opp) hasHostileNeighbor = true;
       });
+      if (!hasHostileNeighbor) return `❌ Cancelado: No hay territorio hostil colindante.`;
       
-      if (!hasHostileNeighbor) return `❌ Operación cancelada: No hay amenaza enemiga colindante.`;
-      
-      region.troops[0] = (region.troops[0] || 0) + 15;
-      region.influence[0] = 100; // Insta stabilize
-      region.influence[1] = 0;
-      return `🚧 Frontera fortificada en ${region.name}! Defensas impenetrables establecidas.`;
+      region.troops[myRef] = (region.troops[myRef] || 0) + 15;
+      region.influence[myRef] = 100;
+      region.influence[opp] = 0;
+      return `🚧 Frontera fortificada en ${region.name}! Defensas aseguradas.`;
     }
   },
   {
-    id: 'gov_deploy',
-    faction: 'gov',
-    name: '🪖 Despliegue Coalición',
-    desc: 'Usa 20 Soldados en reserva para desplegar un destacamento armado.',
+    id: 'deploy',
+    faction: 'all',
+    name: '🪖 Despliegue de Batallón',
+    desc: 'Despliega 20 unidades desde tu reserva hacia el mapa táctico.',
     cost: { military: 20 },
     needsRegion: true,
-    effect: (game, region) => {
-      region.troops[0] = (region.troops[0] || 0) + 20;
-      return `🪖 20 Batallones de Coalición enviados a ${region.name}.`;
+    effect: (game, region, myRef) => {
+      region.troops[myRef] = (region.troops[myRef] || 0) + 20;
+      return `🪖 Batallón desplegado en ${region.name}.`;
     }
   },
   {
-    id: 'gov_combat',
-    faction: 'gov',
+    id: 'combat',
+    faction: 'all',
     name: '⚔️ Operación Ofensiva',
-    desc: 'Ordena erradicar insurgentes en esta región. Cuesta presupuesto.',
+    desc: 'Inicia maniobras militares contra unidades enemigas en esta zona.',
     cost: { money: 10 },
     needsRegion: true,
-    effect: (game, region) => {
-      return executeCombat(game, region, 0, 1);
+    effect: (game, region, myRef) => {
+      return executeCombat(game, region, myRef, myRef === 0 ? 1 : 0);
     }
   },
   {
-    id: 'gov_pr',
-    faction: 'gov',
-    name: '📺 Relaciones Públicas',
-    desc: 'Aumenta significativamente tu reputación mundial. No requiere región.',
+    id: 'pr',
+    faction: 'all',
+    name: '📺 Cumbre Geopolítica',
+    desc: 'Aumenta tu reputación global significativamente (No requiere mapa).',
     cost: { money: 25 },
     needsRegion: false,
-    effect: (game) => {
-      game.players[0].popularity = Math.min(100, game.players[0].popularity + 20);
-      return `📺 Discurso presidencial aumenta la reputación en +20.`;
+    effect: (game, region, myRef) => {
+      game.players[myRef].popularity = Math.min(100, game.players[myRef].popularity + 20);
+      return `📺 Discurso nacional mejora el apoyo público global en +20.`;
     }
   },
   {
-    id: 'gov_intel',
-    faction: 'gov',
-    name: '📡 Solicitar Apoyo',
-    desc: 'Alimenta inteligencia para obtener presupuesto del FMI.',
-    cost: { resources: 30 },
-    needsRegion: false,
-    effect: (game) => {
-      game.players[0].money += 45;
-      return `📡 Informes de inteligencia vendidos por $45.`;
-    }
-  },
-
-  // --- INSURGENT ACTIONS ---
-  {
-    id: 'reb_propaganda',
-    faction: 'reb',
-    name: '📢 Propaganda Radical',
-    desc: 'Sube la hostilidad y reduce el apoyo al gobierno local.',
-    cost: { resources: 15 },
-    needsRegion: true,
-    effect: (game, region) => {
-      region.influence[1] = Math.min(100, (region.influence[1] || 0) + 25);
-      region.influence[0] = Math.max(0, (region.influence[0] || 0) - 15);
-      return `📢 Sublevación civil provocada en ${region.name}: +25% Hostilidad.`;
-    }
-  },
-  {
-    id: 'reb_recruit',
-    faction: 'reb',
-    name: '🏕️ Montar Célula',
-    desc: 'Moviliza 20 Tropas Rebeldes. Cuesta Inteligencia militar.',
-    cost: { resources: 20 },
-    needsRegion: true,
-    effect: (game, region) => {
-      region.troops[1] = (region.troops[1] || 0) + 20;
-      return `🏕️ 20 Células durmientes despertaron en ${region.name}.`;
-    }
-  },
-  {
-    id: 'reb_ambush',
-    faction: 'reb',
-    name: '🧨 Emboscada Guerrillera',
-    desc: 'Ataca tropas enemigas con poco costo.',
-    cost: { money: 5, popularity: 2 },
-    needsRegion: true,
-    effect: (game, region) => {
-      return executeCombat(game, region, 1, 0);
-    }
-  },
-  {
-    id: 'reb_sabotage',
-    faction: 'reb',
-    name: '💣 Sabotaje Masivo',
-    desc: 'Destruye presupuesto y reputación del Gobierno. No requiere región.',
-    cost: { money: 20 },
-    needsRegion: false,
-    effect: (game) => {
-      game.players[0].money = Math.max(0, game.players[0].money - 20);
-      game.players[0].popularity = Math.max(0, game.players[0].popularity - 10);
-      return `💣 Sabotaje en la capital. Gobierno pierde $20 y -10 Reputación.`;
-    }
-  },
-  {
-    id: 'reb_loot',
-    faction: 'reb',
-    name: '⛏️ Saqueo de Recursos',
-    desc: 'Roba dinero a cambio de Inteligencia.',
-    cost: { popularity: 5 },
-    needsRegion: false,
-    effect: (game) => {
-      game.players[1].money += 35;
-      return `⛏️ Convoy saqueado: Insurgencia roba $35.`;
-    }
-  },
-  
-  // --- SHARED ACTIONS ---
-  {
-    id: 'recruit_base',
+    id: 'recruit',
     faction: 'all',
-    name: '🎯 Entrenar Milicia',
-    desc: 'Aumenta tus reservas de milicia/ejército en 25 usando Presupuesto.',
+    name: '🎯 Reclutamiento Nacional',
+    desc: 'Incrementa tu Reserva Militar en 25 usando Presupuesto.',
     cost: { money: 15 },
     needsRegion: false,
-    effect: (game, region, playerIndex) => {
-      game.players[playerIndex].military += 25;
-      return `🎯 +25 Soldados añadidos a la reserva.`;
+    effect: (game, region, myRef) => {
+      game.players[myRef].military += 25;
+      return `🎯 +25 Soldados añadidos a la reserva de operaciones.`;
+    }
+  },
+  {
+    id: 'export',
+    faction: 'all',
+    name: '🚢 Exportar Materias Primas',
+    desc: 'Aprovecha el Mercado Bilateral. Convierte Material/Inteligencia en Dólares.',
+    cost: { resources: 15 },
+    needsRegion: false,
+    effect: (game, region, myRef) => {
+      game.players[myRef].money += 30;
+      return `🚢 El cargamento zarpó. Intercambio: +$30 de Presupuesto.`;
+    }
+  },
+  {
+    id: 'import',
+    faction: 'all',
+    name: '🔬 Importar Tecnología',
+    desc: 'Compra de armamento e Inteligencia a través del Mercado Global.',
+    cost: { money: 30 },
+    needsRegion: false,
+    effect: (game, region, myRef) => {
+      game.players[myRef].resources += 20;
+      return `🔬 Contenedores recibidos exitosamente. +20 Inteligencia y Tecnologías.`;
     }
   }
 ];
@@ -247,8 +190,8 @@ export function createGameState(player0Name, player1Name) {
 
   return {
     players: [
-      { name: 'El Gobierno', money: 100, popularity: 100, military: 30, resources: 20, inflation: 0, corruption: 0, color: 'blue' },
-      { name: 'Insurgencia Rebelde', money: 30, popularity: 100, military: 50, resources: 50, inflation: 0, corruption: 0, color: 'red' },
+      { name: 'Federación del Norte', money: 100, popularity: 100, military: 30, resources: 20, inflation: 0, corruption: 0, color: 'blue' },
+      { name: 'Alianza del Sur', money: 100, popularity: 100, military: 30, resources: 20, inflation: 0, corruption: 0, color: 'red' },
     ],
     regions,
     ready: { 0: false, 1: false },
@@ -363,11 +306,11 @@ export function processRoundEnd(game) {
       player.inflation = Math.max(0, player.inflation - 15);
     }
     // Corruption penalty
-    if (player.corruption > 30 && playerIdx === 0) {
+    if (player.corruption > 30) {
       const cPenalty = Math.floor((player.corruption - 30) / 10);
       if (cPenalty > 0) {
          player.popularity = Math.max(0, player.popularity - cPenalty);
-         game.log.push({ round: game.round, player: -1, message: `📉 La Corrupción rampante le cuesta ${cPenalty} Reputación al Gobierno.`, isEvent: true });
+         game.log.push({ round: game.round, player: playerIdx, message: `📉 La extrema Corrupción cuesta ${cPenalty} Reputación a ${player.name}.`, isEvent: true });
       }
     }
 
@@ -375,21 +318,7 @@ export function processRoundEnd(game) {
     player.resources += turnRes;
   });
 
-  // Insurgency Penalty
-  let controlledByRebels = 0;
-  game.regions.forEach(r => {
-    if ((r.troops[1] || 0) > 0 && r.influence[1] > r.influence[0]) {
-      controlledByRebels++;
-    }
-  });
-
-  if (controlledByRebels > 0) {
-    const repLoss = controlledByRebels * 3;
-    game.players[0].popularity = Math.max(0, game.players[0].popularity - repLoss);
-    game.log.push({ round: game.round, player: -1, message: `⚠️ Regiones inestables causan pérdida de ${repLoss} Reputación.`, isEvent: true });
-  }
-
-  game.log.push({ round: game.round, player: -1, message: '🏦 Economía: Presupuesto extraído.', isEvent: true });
+  game.log.push({ round: game.round, player: -1, message: '🏦 Economía: Operaciones financieras procesadas.', isEvent: true });
   game.lastEvent = triggerRandomEvent(game);
 
   // Reset Simultaneous state
@@ -397,9 +326,15 @@ export function processRoundEnd(game) {
   game.actionsLeft = { 0: ACTIONS_PER_TURN, 1: ACTIONS_PER_TURN };
 
   // Immediate win conditions
-  if (game.players[0].popularity <= 0) {
+  if (game.players[0].popularity <= 0 && game.players[1].popularity <= 0) {
     game.gameOver = true;
-    game.winner = 1; // Insurgents win by collapse
+    game.winner = determineWinner(game);
+  } else if (game.players[0].popularity <= 0) {
+    game.gameOver = true;
+    game.winner = 1;
+  } else if (game.players[1].popularity <= 0) {
+    game.gameOver = true;
+    game.winner = 0;
   } else if (game.round > MAX_ROUNDS) {
     game.gameOver = true;
     game.winner = determineWinner(game);

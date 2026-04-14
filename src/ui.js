@@ -395,8 +395,8 @@ export class GameUI {
     const opp = g.players[this.myIndex === 0 ? 1 : 0];
     const isMyTurn = true;
     const iAmReady = g.ready[this.myIndex];
-    const myFaction = this.myIndex === 0 ? 'gov' : 'reb';
-    const actions = getActions().filter(a => a.faction === 'all' || a.faction === myFaction);
+    const myFaction = 'all';
+    const actions = getActions();
     const myRegions = countRegions(g, this.myIndex);
     const oppRegions = countRegions(g, this.myIndex === 0 ? 1 : 0);
     const totalInfluence0 = g.regions.reduce((s, r) => s + r.influence[0], 0);
@@ -412,18 +412,21 @@ export class GameUI {
         <!-- TOP BAR -->
         <div class="game-topbar">
           <div class="topbar-left">
-            <div class="topbar-title">Rebel Inc: Coalición</div>
+            <div class="topbar-title">OPERACIONES GLOBALES</div>
           </div>
           <div class="topbar-center">
-            <div class="progress-war reputation-bar" style="max-width: 500px; margin: 0 auto;">
-              <div class="pw-label pw-label-left" style="font-weight:800; font-size:0.9rem; color: #fff; text-shadow: 0 0 10px var(--gold);">
-                REPUTACIÓN DE COALICIÓN: ${g.players[0].popularity}%
+            <div class="progress-war reputation-bar" style="max-width: 500px; margin: 0 auto; min-width: 300px;">
+              <div class="pw-label pw-label-left" style="font-weight:800; font-size:0.9rem; color: #fff; text-shadow: 0 0 10px var(--gold); display: flex; justify-content: space-between;">
+                <span>APOYO NACIONAL: ${me.popularity}%</span>
+                <span style="color:var(--text-dim)">vs</span>
+                <span>${opp.popularity}% :RIVAL</span>
               </div>
-              <div class="pw-bar" style="background: rgba(0,0,0,0.6); border: 2px solid ${g.players[0].popularity < 25 ? 'var(--blue-light)' : 'var(--gold)'}; border-radius: 6px; height: 16px;">
-                <div class="pw-fill-left" style="width:${g.players[0].popularity}%; background: ${g.players[0].popularity < 25 ? 'var(--blue-light)' : 'var(--gold)'}; transition: all 0.5s; box-shadow: 0 0 15px ${g.players[0].popularity < 25 ? 'var(--blue-light)' : 'var(--gold)'}; border-radius: 4px;"></div>
+              <div class="pw-bar" style="background: rgba(0,0,0,0.6); border: 1px solid var(--border); border-radius: 6px; height: 16px; display: flex; overflow: hidden;">
+                <div class="pw-fill-left" style="width:${me.popularity / ((me.popularity + opp.popularity)||1) * 100}%; background: ${me.color === 'blue' ? 'var(--blue)' : 'var(--red)'}; transition: all 0.5s;"></div>
+                <div class="pw-fill-right" style="width:${opp.popularity / ((me.popularity + opp.popularity)||1) * 100}%; background: ${opp.color === 'red' ? 'var(--red)' : 'var(--blue)'}; transition: all 0.5s;"></div>
               </div>
-              <div class="pw-label pw-label-right" style="color:var(--text-dim); font-size:0.75rem; margin-top:2px;">
-                Colapso inminente al 0%
+              <div class="pw-label pw-label-right" style="color:var(--text-dim); font-size:0.75rem; margin-top:2px; text-align:center;">
+                Tensión Geopolítica Mundial
               </div>
             </div>
           </div>
@@ -743,23 +746,26 @@ export class GameUI {
     const p0w = total > 0 ? (region.influence[0] / Math.max(total, 1)) * 100 : 0;
     const p1w = total > 0 ? (region.influence[1] / Math.max(total, 1)) * 100 : 0;
 
-    const hasInsurgents = (region.troops[1] || 0) > 0;
-    const isStable = region.influence[0] === 100 && !hasInsurgents;
+    const oppIdx = this.myIndex === 0 ? 1 : 0;
+    const hasEnemyTroops = (region.troops[oppIdx] || 0) > 0;
+    const myTroops = (region.troops[this.myIndex] || 0) > 0;
+    const isStable = region.influence[this.myIndex] === 100 && !hasEnemyTroops;
+    const hasConflict = myTroops && hasEnemyTroops;
 
     return `
-      <div class="region-node ${ownerClass} ${selected} ${hasInsurgents ? 'has-insurgents' : ''}" data-region="${region.id}" style="${inlineStyle}">
-        <div class="node-influence-ring" style="background: conic-gradient(var(--gold) 0% ${p0w}%, var(--blue-light) ${p0w}% ${p0w + p1w}%, rgba(20,25,30,0.8) ${p0w + p1w}% 100%);"></div>
-        <div class="node-inner" style="${isStable ? 'background-color: var(--gold);' : ''}">
+      <div class="region-node ${ownerClass} ${selected}" data-region="${region.id}" style="${inlineStyle}; ${hasConflict ? 'filter: drop-shadow(0 0 10px var(--red));' : ''}">
+        <div class="node-influence-ring" style="background: conic-gradient(var(--blue) 0% ${p0w}%, var(--red) ${p0w}% ${p0w + p1w}%, rgba(20,25,30,0.8) ${p0w + p1w}% 100%);"></div>
+        <div class="node-inner" style="${isStable ? `background-color: ${this.myIndex === 0 ? 'var(--blue)' : 'var(--red)'};` : ''}">
           <div class="node-icon">${region.icon}</div>
         </div>
-        ${hasInsurgents && !isStable ? `<div class="insurgent-warning" style="position:absolute; top:-30px; font-size:1.5rem; text-shadow:0 0 10px #f00;">⚠️</div>` : ''}
+        ${hasConflict ? `<div class="insurgent-warning" style="position:absolute; top:-30px; font-size:1.5rem; text-shadow:0 0 10px #f00;">⚔️</div>` : ''}
         <div class="troops-bubbles">
           ${region.troops && region.troops[0] > 0 ? `<div class="troop-bubble player-0">🛡️ ${region.troops[0]}</div>` : ''}
-          ${region.troops && region.troops[1] > 0 ? `<div class="troop-bubble player-1">⚔️ ${region.troops[1]}</div>` : ''}
+          ${region.troops && region.troops[1] > 0 ? `<div class="troop-bubble player-1">🛡️ ${region.troops[1]}</div>` : ''}
         </div>
         <div class="node-labels">
-          <div class="node-name" style="${isStable ? 'color: var(--gold-light);' : ''}">${region.name} <span style="opacity:0.6">(${region.population}M)</span></div>
-          <div class="node-inf-text">Estabilidad: ${region.influence[0]}% | Riesgo: ${region.influence[1]}%</div>
+          <div class="node-name" style="${isStable ? `color: ${this.myIndex === 0 ? 'var(--blue-light)' : 'var(--red-light)'};` : ''}">${region.name} <span style="opacity:0.6">(${region.population}M)</span></div>
+          <div class="node-inf-text">Fed: ${region.influence[0]}% | Ali: ${region.influence[1]}%</div>
         </div>
       </div>
     `;
