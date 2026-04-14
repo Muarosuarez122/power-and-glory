@@ -100,8 +100,10 @@ export class Network {
 
         conn.on('open', () => {
           console.log('[Network] Connected to host!');
-          this._setupConnection(conn);
-          resolve();
+          setTimeout(() => {
+            this._setupConnection(conn);
+            resolve();
+          }, 500); // Small delay to stabilize the channel before handshake
         });
 
         conn.on('error', (err) => {
@@ -173,7 +175,12 @@ export class Network {
 
   /** Send game start signal */
   sendStart(state) {
-    this.send({ type: 'start', state: JSON.parse(JSON.stringify(state)) });
+    // Stringify/Parse ensures clean clone of state for network transmission
+    const cleanState = JSON.parse(JSON.stringify(state));
+    console.log('[Network] Sending start signal...');
+    setTimeout(() => {
+      this.send({ type: 'start', state: cleanState });
+    }, 300);
   }
 
   /** Send a chat message */
