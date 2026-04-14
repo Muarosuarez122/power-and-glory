@@ -17,160 +17,171 @@ const REGIONS = [
 ];
 
 const ACTIONS = [
+  // --- GOVERNMENT ACTIONS ---
   {
-    id: 'campaign',
-    name: '📢 Campaña Política',
-    desc: 'Haz campaña pacífica en una región para ganar influencia civil.',
-    cost: { money: 10 },
+    id: 'gov_civic',
+    faction: 'gov',
+    name: '🏗️ Iniciativas Civiles',
+    desc: 'Baja hostilidad, sube apoyo gubernamental en la zona.',
+    cost: { money: 15 },
     needsRegion: true,
     effect: (game, region) => {
-      const amount = 12 + Math.floor(Math.random() * 8);
-      region.influence[game.currentTurn] = Math.min(100, (region.influence[game.currentTurn] || 0) + amount);
-      return `📢 Campaña en ${region.name}: +${amount} influencia`;
+      region.influence[0] = Math.min(100, (region.influence[0] || 0) + 20);
+      region.influence[1] = Math.max(0, (region.influence[1] || 0) - 15);
+      return `🏗️ Infraestructura civil en ${region.name}: +20% Estabilidad.`;
     }
   },
   {
-    id: 'propaganda',
-    name: '📺 Propaganda Global',
-    desc: 'Medios masivos para ganar apoyo popular nacional.',
-    cost: { money: 15, resources: 5 },
-    needsRegion: false,
-    effect: (game) => {
-      const amount = 10 + Math.floor(Math.random() * 5);
-      game.players[game.currentTurn].popularity = Math.min(100, game.players[game.currentTurn].popularity + amount);
-      return `📺 Propaganda lanzada: +${amount}% popularidad`;
-    }
-  },
-  {
-    id: 'bribe',
-    name: '💰 Corrupción Regional',
-    desc: 'Paga para desestabilizar la influencia rival en una zona.',
-    cost: { money: 30 },
-    needsRegion: true,
-    effect: (game, region) => {
-      const opp = game.currentTurn === 0 ? 1 : 0;
-      const stolen = Math.min(region.influence[opp] || 0, 15 + Math.floor(Math.random() * 10));
-      region.influence[opp] = Math.max(0, (region.influence[opp] || 0) - stolen);
-      region.influence[game.currentTurn] = Math.min(100, (region.influence[game.currentTurn] || 0) + Math.floor(stolen * 0.5));
-      return `💰 Corrupción en ${region.name}: -${stolen} rival, +${Math.floor(stolen * 0.5)} tuyo`;
-    }
-  },
-  {
-    id: 'military_build',
-    name: '🛡️ Armamentismo',
-    desc: 'Convierte tus recursos en poderío militar para atacar.',
-    cost: { money: 10, resources: 20 },
-    needsRegion: false,
-    effect: (game) => {
-      const pts = 15 + Math.floor(Math.random() * 10);
-      game.players[game.currentTurn].military = Math.min(100, game.players[game.currentTurn].military + pts);
-      return `🛡️ Armamentismo: +${pts} poder militar equipado`;
-    }
-  },
-  {
-    id: 'deploy_troops',
-    name: '🪖 Despliegue de Tropas',
-    desc: 'Usa 20 Ejército Global para establecer un Campamento de 20 Tropas en una región.',
+    id: 'gov_deploy',
+    faction: 'gov',
+    name: '🪖 Despliegue Coalición',
+    desc: 'Usa 20 Soldados en reserva para desplegar un destacamento armado.',
     cost: { military: 20 },
     needsRegion: true,
     effect: (game, region) => {
-      region.troops[game.currentTurn] = (region.troops[game.currentTurn] || 0) + 20;
-      return `🪖 20 Unidades desplegadas en ${region.name}.`;
+      region.troops[0] = (region.troops[0] || 0) + 20;
+      return `🪖 20 Batallones de Coalición enviados a ${region.name}.`;
     }
   },
   {
-    id: 'combat',
-    name: '⚔️ Lanzar Ofensiva',
-    desc: 'Ordena a tus tropas atacar. Cuesta popularidad. Si destruyes al enemigo, ganas su territorio.',
-    cost: { money: 10, popularity: 2 },
+    id: 'gov_combat',
+    faction: 'gov',
+    name: '⚔️ Operación Ofensiva',
+    desc: 'Ordena erradicar insurgentes en esta región. Cuesta presupuesto.',
+    cost: { money: 10 },
     needsRegion: true,
     effect: (game, region) => {
-      if (game.peaceDuration > 0) return `⚠️ Ofensiva fallida: Tratado de paz vigente.`;
-      
-      const opp = game.currentTurn === 0 ? 1 : 0;
-      const myTroops = region.troops[game.currentTurn] || 0;
-      let oppTroops = region.troops[opp] || 0;
-      
-      if (myTroops <= 0) return `⚠️ No tienes tropas desplegadas en esta región para iniciar una ofensiva.`;
-      
-      // Roll dice for combat casualties
-      const myRoll = Math.floor(Math.random() * myTroops) + Math.floor(myTroops * 0.5);
-      const oppRoll = oppTroops > 0 ? (Math.floor(Math.random() * oppTroops) + Math.floor(oppTroops * 0.5)) : 0;
-      
-      const casualtiesMe = Math.min(myTroops, Math.floor(Math.random() * (oppRoll || 3)));
-      const casualtiesOpp = Math.min(oppTroops, Math.floor(Math.random() * myRoll));
-      
-      region.troops[game.currentTurn] = Math.max(0, myTroops - casualtiesMe);
-      region.troops[opp] = Math.max(0, oppTroops - casualtiesOpp);
-      
-      let resMsg = `⚔️ Ofensiva en ${region.name}: Bajas propias (${casualtiesMe}), Bajas enemigas (${casualtiesOpp}). `;
-      
-      if (region.troops[opp] === 0 && oppTroops > 0) {
-        region.influence[game.currentTurn] = Math.min(100, region.influence[game.currentTurn] + 25);
-        region.influence[opp] = Math.max(0, region.influence[opp] - 40);
-        resMsg += `¡VICTORIA! Enemigo erradicado. Ganas 25% influencia local.`;
-      } else if (region.troops[opp] === 0) {
-        region.influence[game.currentTurn] = Math.min(100, region.influence[game.currentTurn] + 15);
-        resMsg += `Ocupación pacífica (+15% influencia local).`;
-      } else {
-        resMsg += `El frente se mantiene activo.`;
-      }
-      return resMsg;
+      return executeCombat(game, region, 0, 1);
     }
   },
   {
-    id: 'peace_treaty',
-    name: '🕊️ Imponer Tregua',
-    desc: 'La ONU obliga a un cese al fuego por 2 rondas. Nadie puede invadir.',
-    cost: { money: 25, popularity: 10 },
+    id: 'gov_pr',
+    faction: 'gov',
+    name: '📺 Relaciones Públicas',
+    desc: 'Aumenta significativamente tu reputación mundial. No requiere región.',
+    cost: { money: 25 },
     needsRegion: false,
     effect: (game) => {
-      game.peaceDuration = 2;
-      return `🕊️ Tregua Internacional firmada. Prohibido invadir por 2 rondas.`;
+      game.players[0].popularity = Math.min(100, game.players[0].popularity + 20);
+      return `📺 Discurso presidencial aumenta la reputación en +20.`;
     }
   },
   {
-    id: 'trade',
-    name: '📦 Tratado Comercial',
-    desc: 'Vende tus reservas de recursos en el mercado global por oro.',
+    id: 'gov_intel',
+    faction: 'gov',
+    name: '📡 Solicitar Apoyo',
+    desc: 'Alimenta inteligencia para obtener presupuesto del FMI.',
     cost: { resources: 30 },
     needsRegion: false,
     effect: (game) => {
-      const gold = 40 + Math.floor(Math.random() * 20);
-      game.players[game.currentTurn].money += gold;
-      return `📦 Comercio exitoso: 30 Recursos exportados por $${gold}`;
+      game.players[0].money += 45;
+      return `📡 Informes de inteligencia vendidos por $45.`;
+    }
+  },
+
+  // --- INSURGENT ACTIONS ---
+  {
+    id: 'reb_propaganda',
+    faction: 'reb',
+    name: '📢 Propaganda Radical',
+    desc: 'Sube la hostilidad y reduce el apoyo al gobierno local.',
+    cost: { resources: 15 },
+    needsRegion: true,
+    effect: (game, region) => {
+      region.influence[1] = Math.min(100, (region.influence[1] || 0) + 25);
+      region.influence[0] = Math.max(0, (region.influence[0] || 0) - 15);
+      return `📢 Sublevación civil provocada en ${region.name}: +25% Hostilidad.`;
     }
   },
   {
-    id: 'mine',
-    name: '⛏️ Explotación Intensiva',
-    desc: 'Sacrifica algo de popularidad para extraer recursos rápidamente.',
+    id: 'reb_recruit',
+    faction: 'reb',
+    name: '🏕️ Montar Célula',
+    desc: 'Moviliza 20 Tropas Rebeldes. Cuesta Inteligencia militar.',
+    cost: { resources: 20 },
+    needsRegion: true,
+    effect: (game, region) => {
+      region.troops[1] = (region.troops[1] || 0) + 20;
+      return `🏕️ 20 Células durmientes despertaron en ${region.name}.`;
+    }
+  },
+  {
+    id: 'reb_ambush',
+    faction: 'reb',
+    name: '🧨 Emboscada Guerrillera',
+    desc: 'Ataca tropas enemigas con poco costo.',
+    cost: { money: 5, popularity: 2 },
+    needsRegion: true,
+    effect: (game, region) => {
+      return executeCombat(game, region, 1, 0);
+    }
+  },
+  {
+    id: 'reb_sabotage',
+    faction: 'reb',
+    name: '💣 Sabotaje Masivo',
+    desc: 'Destruye presupuesto y reputación del Gobierno. No requiere región.',
+    cost: { money: 20 },
+    needsRegion: false,
+    effect: (game) => {
+      game.players[0].money = Math.max(0, game.players[0].money - 20);
+      game.players[0].popularity = Math.max(0, game.players[0].popularity - 10);
+      return `💣 Sabotaje en la capital. Gobierno pierde $20 y -10 Reputación.`;
+    }
+  },
+  {
+    id: 'reb_loot',
+    faction: 'reb',
+    name: '⛏️ Saqueo de Recursos',
+    desc: 'Roba dinero a cambio de Inteligencia.',
     cost: { popularity: 5 },
     needsRegion: false,
     effect: (game) => {
-      const res = 25 + Math.floor(Math.random() * 15);
-      game.players[game.currentTurn].resources += res;
-      return `⛏️ Explotación intensiva: +${res} recursos extraídos.`;
+      game.players[1].money += 35;
+      return `⛏️ Convoy saqueado: Insurgencia roba $35.`;
     }
   },
+  
+  // --- SHARED ACTIONS ---
   {
-    id: 'embargo',
-    name: '🛑 Embargo Económico',
-    desc: 'Sanciona fuertemente la economía y recursos del enemigo.',
-    cost: { money: 40, popularity: 10 },
+    id: 'recruit_base',
+    faction: 'all',
+    name: '🎯 Entrenar Milicia',
+    desc: 'Aumenta tus reservas de milicia/ejército en 25 usando Presupuesto.',
+    cost: { money: 15 },
     needsRegion: false,
     effect: (game) => {
-      const opp = game.currentTurn === 0 ? 1 : 0;
-      const resDamage = 30 + Math.floor(Math.random() * 20);
-      const moneyDamage = 20 + Math.floor(Math.random() * 15);
-      
-      game.players[opp].resources = Math.max(0, game.players[opp].resources - resDamage);
-      game.players[opp].money = Math.max(0, game.players[opp].money - moneyDamage);
-      
-      return `🛑 Sanciones al enemigo: Pierden $${moneyDamage} y ${resDamage} Recursos.`;
+      const p = game.currentTurn;
+      game.players[p].military += 25;
+      return `🎯 +25 Soldados añadidos a la reserva.`;
     }
   }
 ];
+
+function executeCombat(game, region, attacker, defender) {
+  const myTroops = region.troops[attacker] || 0;
+  let oppTroops = region.troops[defender] || 0;
+  
+  if (myTroops <= 0) return `⚠️ No tienes tropas en esta región.`;
+  
+  const myRoll = Math.floor(Math.random() * myTroops) + Math.floor(myTroops * 0.5);
+  const oppRoll = oppTroops > 0 ? (Math.floor(Math.random() * oppTroops) + Math.floor(oppTroops * 0.5)) : 0;
+  
+  const casualtiesMe = Math.min(myTroops, Math.floor(Math.random() * (oppRoll || 3)));
+  const casualtiesOpp = Math.min(oppTroops, Math.floor(Math.random() * myRoll));
+  
+  region.troops[attacker] = Math.max(0, myTroops - casualtiesMe);
+  region.troops[defender] = Math.max(0, oppTroops - casualtiesOpp);
+  
+  let resMsg = `⚔️ Combate (${region.name}): Perdiste ${casualtiesMe}, Enemigo perdió ${casualtiesOpp}. `;
+  
+  if (region.troops[defender] === 0 && oppTroops > 0) {
+    region.influence[attacker] = Math.min(100, region.influence[attacker] + 25);
+    region.influence[defender] = Math.max(0, region.influence[defender] - 40);
+    resMsg += `¡FRENTE ROTO! Enemigo eliminado. Ganas Control.`;
+  }
+  return resMsg;
+}
 
 const MAX_ROUNDS = 12; // Extend to 12 giving time for more complex geopolitics
 const ACTIONS_PER_TURN = 2;
@@ -188,17 +199,17 @@ export function createGameState(player0Name, player1Name) {
 
   return {
     players: [
-      { name: player0Name, money: 60, popularity: 50, military: 10, resources: 20, color: 'gold' },
-      { name: player1Name, money: 60, popularity: 50, military: 10, resources: 20, color: 'blue' },
+      { name: 'El Gobierno', money: 100, popularity: 100, military: 30, resources: 20, color: 'blue' },
+      { name: 'Insurgencia Rebelde', money: 30, popularity: 100, military: 50, resources: 50, color: 'red' },
     ],
     regions,
-    currentTurn: 0,      // 0 or 1
+    currentTurn: 0,
     round: 1,
     actionsLeft: ACTIONS_PER_TURN,
     log: [],
     gameOver: false,
     winner: null,
-    peaceDuration: 0,    // rounds left of forced peace
+    peaceDuration: 0,
   };
 }
 
@@ -260,19 +271,17 @@ export function performAction(game, actionId, regionId) {
 export function endTurn(game) {
   if (game.gameOver) return;
 
-  // Process end of round if it was player 1's turn
   if (game.currentTurn === 1) {
     game.round += 1;
     
-    // Decrement peace duration
     if (game.peaceDuration > 0) {
       game.peaceDuration -= 1;
       if (game.peaceDuration === 0) {
-        game.log.push({ round: game.round, player: -1, message: '🕊️ El tratado de paz ha expirado. Hay riesgo de invasiones.', isEvent: true });
+        game.log.push({ round: game.round, player: -1, message: '🕊️ El tratado de paz ha expirado.', isEvent: true });
       }
     }
 
-    // Passive Economy: compute yields based on controlled regions
+    // Passive Economy
     [0, 1].forEach(playerIdx => {
       let turnMoney = 0;
       let turnRes = 0;
@@ -282,24 +291,38 @@ export function endTurn(game) {
           turnRes += r.prod.resources;
         }
       });
-      
-      // Minimum passive income
       turnMoney += 10;
       turnRes += 5;
-      
       game.players[playerIdx].money += turnMoney;
       game.players[playerIdx].resources += turnRes;
     });
 
-    game.log.push({ round: game.round, player: -1, message: '🏦 Economía: Recursos y dinero recaudados por territorios.', isEvent: true });
-    
+    // Insurgency Penalty
+    let controlledByRebels = 0;
+    game.regions.forEach(r => {
+      if ((r.troops[1] || 0) > 0 && r.influence[1] > r.influence[0]) {
+        controlledByRebels++;
+      }
+    });
+
+    if (controlledByRebels > 0) {
+      const repLoss = controlledByRebels * 3;
+      game.players[0].popularity = Math.max(0, game.players[0].popularity - repLoss);
+      game.log.push({ round: game.round, player: -1, message: `⚠️ Regiones inestables causan pérdida de ${repLoss} Reputación.`, isEvent: true });
+    }
+
+    game.log.push({ round: game.round, player: -1, message: '🏦 Economía: Presupuesto extraído.', isEvent: true });
     game.lastEvent = triggerRandomEvent(game);
   }
 
   game.currentTurn = game.currentTurn === 0 ? 1 : 0;
   game.actionsLeft = ACTIONS_PER_TURN;
 
-  if (game.round > MAX_ROUNDS) {
+  // Immediate win conditions
+  if (game.players[0].popularity <= 0) {
+    game.gameOver = true;
+    game.winner = 1; // Insurgents win by collapse
+  } else if (game.round > MAX_ROUNDS) {
     game.gameOver = true;
     game.winner = determineWinner(game);
   }
@@ -379,17 +402,16 @@ export function countRegions(game, playerIndex) {
 }
 
 export function determineWinner(game) {
+  if (game.players[0].popularity <= 0) return 1; // Insurgency wins
+  
   const r0 = countRegions(game, 0);
   const r1 = countRegions(game, 1);
-  if (r0 > r1) return 0;
-  if (r1 > r0) return 1;
-  // tiebreaker: popularity
+  if (r0 > r1) return 0; // Government stabilizes majority
+  if (r1 > r0) return 1; // Insurgency controls majority
+  
+  // tiebreaker
   if (game.players[0].popularity > game.players[1].popularity) return 0;
-  if (game.players[1].popularity > game.players[0].popularity) return 1;
-  // money + resources + military tiebreaker
-  const v0 = game.players[0].money + game.players[0].resources + game.players[0].military;
-  const v1 = game.players[1].money + game.players[1].resources + game.players[1].military;
-  return v0 >= v1 ? 0 : 1;
+  return 1;
 }
 
 export function getTotalScore(game, playerIndex) {

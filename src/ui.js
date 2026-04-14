@@ -393,7 +393,8 @@ export class GameUI {
     const me = g.players[this.myIndex];
     const opp = g.players[this.myIndex === 0 ? 1 : 0];
     const isMyTurn = g.currentTurn === this.myIndex;
-    const actions = getActions();
+    const myFaction = this.myIndex === 0 ? 'gov' : 'reb';
+    const actions = getActions().filter(a => a.faction === 'all' || a.faction === myFaction);
     const myRegions = countRegions(g, this.myIndex);
     const oppRegions = countRegions(g, this.myIndex === 0 ? 1 : 0);
     const totalInfluence0 = g.regions.reduce((s, r) => s + r.influence[0], 0);
@@ -409,7 +410,7 @@ export class GameUI {
         <!-- TOP BAR -->
         <div class="game-topbar">
           <div class="topbar-left">
-            <div class="topbar-title">Poder & Gloria</div>
+            <div class="topbar-title">Rebel Inc: Coalición</div>
           </div>
           <div class="topbar-center">
             <div class="progress-war">
@@ -443,19 +444,19 @@ export class GameUI {
           <div class="sidebar-left">
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
               <div class="stat-card card">
-                <div class="stat-label"><span class="stat-icon">💰</span> Dinero</div>
+                <div class="stat-label"><span class="stat-icon">💰</span> Presupuesto</div>
                 <div class="stat-value" style="color: var(--gold-light);">$${me.money}</div>
               </div>
               <div class="stat-card card">
-                <div class="stat-label"><span class="stat-icon">⭐</span> Popular</div>
+                <div class="stat-label"><span class="stat-icon">⭐</span> Reputación</div>
                 <div class="stat-value" style="color: var(--green-light);">${me.popularity}%</div>
               </div>
               <div class="stat-card card">
-                <div class="stat-label"><span class="stat-icon">🪖</span> Ejército</div>
+                <div class="stat-label"><span class="stat-icon">🪖</span> Reserva</div>
                 <div class="stat-value" style="color: var(--red-light);">${me.military}</div>
               </div>
               <div class="stat-card card">
-                <div class="stat-label"><span class="stat-icon">🛢️</span> Recursos</div>
+                <div class="stat-label"><span class="stat-icon">📡</span> Inteligencia</div>
                 <div class="stat-value" style="color: var(--text);">${me.resources}</div>
               </div>
             </div>
@@ -473,21 +474,21 @@ export class GameUI {
 
             <!-- Opponent mini stats -->
             <div class="opponent-section">
-              <div class="section-label">Rival: ${opp.name}</div>
+              <div class="section-label">Oposición: ${opp.name}</div>
               <div class="opponent-mini-stat">
-                <span class="opp-label">💰 Dinero</span>
+                <span class="opp-label">💰 Presupuesto</span>
                 <span>$${opp.money}</span>
               </div>
               <div class="opponent-mini-stat">
-                <span class="opp-label">⭐ Popular</span>
+                <span class="opp-label">⭐ Reputación</span>
                 <span>${opp.popularity}%</span>
               </div>
               <div class="opponent-mini-stat">
-                <span class="opp-label">🪖 Ejército</span>
+                <span class="opp-label">🪖 Reserva</span>
                 <span>${opp.military}</span>
               </div>
               <div class="opponent-mini-stat">
-                <span class="opp-label">🛢️ Recursos</span>
+                <span class="opp-label">📡 Inteligencia</span>
                 <span>${opp.resources}</span>
               </div>
             </div>
@@ -553,7 +554,7 @@ export class GameUI {
               const disabled = !affordable || !regionSelected || (a.id === 'combat' && g.peaceDuration > 0);
               let costStr = [];
               if(a.cost?.money) costStr.push(`$${a.cost.money}`);
-              if(a.cost?.resources) costStr.push(`${a.cost.resources}🛢️`);
+              if(a.cost?.resources) costStr.push(`${a.cost.resources}📡`);
               if(a.cost?.military) costStr.push(`${a.cost.military}🪖`);
               if(a.cost?.popularity) costStr.push(`${a.cost.popularity}⭐`);
               return `
