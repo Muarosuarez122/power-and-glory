@@ -89,6 +89,30 @@ body {
               radial-gradient(circle at 90% 90%, rgba(231, 76, 60, 0.05) 0%, transparent 40%);
 }
 
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+.scanline-effect {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 5vh;
+  background: linear-gradient(transparent, rgba(52, 152, 219, 0.1), transparent);
+  box-shadow: 0 0 40px rgba(52, 152, 219, 0.05);
+  pointer-events: none;
+  z-index: 2000;
+  animation: scanline 6s linear infinite;
+}
+
 /* ===== Buttons ===== */
 .btn {
   display: inline-flex;
@@ -1234,3 +1258,73 @@ body {
     padding: 4px 10px;
   }
 }
+
+/* ===== HOI4 / REBEL INC MAP LAYOUT ===== */
+.region-node {
+  border-radius: 8px !important;
+  width: 50px !important;
+  height: 50px !important;
+}
+.node-inner {
+  border-radius: 6px !important;
+  position: relative;
+}
+.supply-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: rgba(0,0,0,0.5);
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  overflow: hidden;
+}
+.supply-progress {
+  height: 100%;
+  background: var(--green);
+  opacity: 0.8;
+  transition: width 0.3s ease;
+}
+.unit-counters {
+  position: absolute;
+  top: -15px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: none;
+  z-index: 10;
+}
+.unit-group {
+  display: flex;
+  gap: 2px;
+  background: rgba(0,0,0,0.8);
+  padding: 1px 3px;
+  border-radius: 3px;
+  border: 1px solid rgba(255,255,255,0.2);
+  font-size: 0.55rem;
+  font-weight: bold;
+  white-space: nowrap;
+}
+.unit-group.player-0 { border-color: var(--blue); border-left-width: 3px; }
+.unit-group.player-1 { border-color: var(--red); border-left-width: 3px; }
+.u-cnt {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+.combat-clash {
+  z-index: 100;
+  pointer-events: none;
+  text-shadow: 0 0 10px #f00, 0 0 20px #ff0;
+}
+.actions-grid {
+  max-height: 250px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.actions-grid::-webkit-scrollbar { width: 3px; }
+.actions-grid::-webkit-scrollbar-track { background: transparent; }
+.actions-grid::-webkit-scrollbar-thumb { background: var(--blue-dim); }

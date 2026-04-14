@@ -7,7 +7,8 @@ import {
   createGameState, getActions, performAction, processRoundEnd, canAfford,
   getRegionOwner, countRegions, getMaxRounds, getActionsPerTurn, getTotalScore,
   determineWinner, getActionCost, sendProposal, respondToProposal,
-  REGIMES, LAWS, setRegime, passLaw
+  REGIMES, LAWS, LAW_CATEGORIES, setRegime, passLaw,
+  SKILL_TREE, learnSkill, UNIT_TYPES
 } from './game.js';
 import { SFX } from './sfx.js';
 
@@ -167,28 +168,52 @@ function showLawsSelectorModal(game, playerIndex, onPass) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   const myLaws = game.players[playerIndex].activeLaws;
+  const p = game.players[playerIndex];
   
-  overlay.innerHTML = `
-    <div class="modal-content panel" style="animation: fadeSlideUp 0.4s ease forwards; width:450px;">
-      <h3>⚖️ Agenda Legislativa</h3>
-      <div style="display:flex; flex-direction:column; gap:10px; margin-top:15px; text-align:left;">
-        ${LAWS.map(law => {
-          const active = myLaws.includes(law.id);
-          const afford = game.players[playerIndex].money >= (law.cost.money||0) && game.players[playerIndex].popularity >= (law.cost.popularity||0);
-          return `
-            <div class="card" style="padding:10px; background: rgba(255,255,255,0.03); border: 1px solid ${active ? 'var(--gold)' : 'var(--border)'}; opacity: ${active ? '0.6' : '1'};">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <strong style="color:var(--gold);">${law.name}</strong>
-                ${active ? '<span style="font-size:0.7rem; color:var(--gold);">ACTIVA</span>' : `<button class="btn btn-xs btn-primary btn-pass-law" data-id="${law.id}" ${!afford ? 'disabled' : ''}>Promulgar</button>`}
+  const categoriesMarkup = Object.entries(LAW_CATEGORIES).map(([catId, catName]) => {
+    const catLaws = LAWS.filter(l => l.cat === catId);
+    return `
+      <div class="law-category-group" style="margin-bottom:20px;">
+        <h4 style="color:var(--text-dim); border-bottom:1px solid var(--border); padding-bottom:4px; margin-bottom:10px; font-size:0.8rem; text-transform:uppercase; letter-spacing:1px;">${catName}</h4>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          ${catLaws.map(law => {
+            const active = myLaws.includes(law.id);
+            const canAfford = p.money >= (law.cost.money||0) && p.popularity >= (law.cost.popularity||0) && p.resources >= (law.cost.resources||0);
+            
+            return `
+              <div class="law-item card" style="padding:12px; background: ${active ? 'rgba(52, 152, 219, 0.1)' : 'rgba(255,255,255,0.02)'}; border: 1px solid ${active ? 'var(--blue)' : 'var(--border)'};">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong style="color:${active ? 'var(--blue-light)' : 'var(--gold-light)'}; font-size:0.9rem;">${law.name}</strong>
+                  ${active ? '<span style="color:var(--blue-light); font-size:0.7rem; font-weight:800; text-shadow:0 0 10px var(--blue-light);">VIGENTE</span>' : 
+                    `<button class="btn btn-xs btn-primary btn-pass-law" data-id="${law.id}" ${!canAfford ? 'disabled' : ''}>Promulgar</button>`}
+                </div>
+                <div style="font-size:0.75rem; color:var(--text-dim); margin:6px 0;">${law.desc}</div>
+                ${!active ? `
+                  <div style="font-size:0.7rem; color:var(--gold-dim); display:flex; gap:8px;">
+                    ${law.cost.money ? `<span>💰 $${law.cost.money}</span>` : ''}
+                    ${law.cost.popularity ? `<span>⭐ ${law.cost.popularity}%</span>` : ''}
+                    ${law.cost.resources ? `<span>📡 ${law.cost.resources}</span>` : ''}
+                  </div>
+                ` : ''}
               </div>
-              <div style="font-size:0.75rem; color:var(--text-dim); margin:4px 0;">${law.desc}</div>
-              <div style="font-size:0.7rem; color:var(--gold-dim);">Costo: ${law.cost.money ? `$${law.cost.money}` : ''} ${law.cost.popularity ? `${law.cost.popularity}⭐` : ''}</div>
-            </div>
-          `;
-        }).join('')}
+            `;
+          }).join('')}
+        </div>
       </div>
-      <div class="modal-actions" style="margin-top:20px;">
-        <button class="btn" id="btnCloseLaws">Cerrar</button>
+    `;
+  }).join('');
+
+  overlay.innerHTML = `
+    <div class="modal-content panel" style="animation: fadeSlideUp 0.4s ease forwards; width:500px; max-height:85vh; overflow-y:auto; border: 2px solid var(--blue);">
+      <div style="position:sticky; top:0; background:var(--bg-panel); padding-bottom:15px; z-index:5; border-bottom:1px solid var(--border); margin-bottom:20px;">
+        <h2 style="color:var(--blue-light); letter-spacing:2px;">🏛️ CÁMARA LEGISLATIVA</h2>
+        <p style="font-size:0.8rem; color:var(--text-dim);">Define la política nacional de la ${p.name.toUpperCase()}</p>
+      </div>
+      
+      ${categoriesMarkup}
+
+      <div class="modal-actions" style="margin-top:20px; position:sticky; bottom:0; padding-top:15px; background:var(--bg-panel); border-top:1px solid var(--border);">
+        <button class="btn" id="btnCloseLaws" style="width:100%;">Cerrar Sesión Legislativa</button>
       </div>
     </div>
   `;
@@ -241,6 +266,63 @@ function showRegimeSelectorModal(currentRegime, onSelect) {
     });
   });
   document.getElementById('btnCancelRegime').addEventListener('click', () => overlay.remove());
+}
+
+function showSkillTreeModal(game, playerIndex, onLearn) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  const mySkills = game.players[playerIndex].unlockedSkills;
+  const resources = game.players[playerIndex].resources;
+  
+  overlay.innerHTML = `
+    <div class="modal-content panel" style="animation: fadeSlideUp 0.4s ease forwards; width:600px; max-height:90vh; overflow-y:auto; border: 2px solid var(--blue-light);">
+      <h3>🧪 CENTRO DE DESARROLLO TECNOLÓGICO</h3>
+      <p style="font-size:0.8rem; color:var(--text-dim); margin-bottom:20px;">Utiliza tu <strong>Inteligencia (📡 ${resources})</strong> para desbloquear ventajas pasivas permanentes.</p>
+      
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; text-align:left;">
+        ${Object.entries(SKILL_TREE).map(([branchId, skills]) => `
+          <div class="skill-branch">
+            <h4 style="color:var(--blue-light); border-bottom:1px solid var(--border); padding-bottom:6px; margin-bottom:12px; font-size:0.75rem; text-transform:uppercase;">${branchId}</h4>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              ${skills.map(skill => {
+                const unlocked = mySkills.includes(skill.id);
+                const canAfford = resources >= skill.cost.resources;
+                const lockedReq = skill.req && !mySkills.includes(skill.req);
+                const disabled = unlocked || lockedReq || !canAfford;
+                
+                return `
+                  <div class="skill-card card" style="padding:10px; min-height:100px; border: 1px solid ${unlocked ? 'var(--blue)' : 'var(--border)'}; background: ${unlocked ? 'rgba(52,152,219,0.1)' : 'rgba(0,0,0,0.2)'}; position:relative;">
+                    <div style="font-size:0.8rem; font-weight:bold; color:${unlocked ? 'var(--blue-light)' : 'var(--text)'};">${skill.name}</div>
+                    <div style="font-size:0.65rem; color:var(--text-dim); margin:4px 0; line-height:1.2;">${skill.desc}</div>
+                    
+                    <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
+                      <span style="font-size:0.65rem; color:var(--blue-dim);">📡 ${skill.cost.resources}</span>
+                      ${unlocked ? '<span style="color:var(--green); font-size:0.6rem; font-weight:bold;">LISTO</span>' : 
+                        lockedReq ? '<span style="color:var(--text-muted); font-size:0.6rem;">BLOQUEADO</span>' :
+                        `<button class="btn btn-xs btn-primary btn-learn-skill" data-id="${skill.id}" ${disabled ? 'disabled' : ''}>Investigar</button>`}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="modal-actions" style="margin-top:20px;">
+        <button class="btn" id="btnCloseSkills" style="width:100%;">Cerrar Laboratorio</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  
+  overlay.querySelectorAll('.btn-learn-skill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      onLearn(btn.dataset.id);
+      overlay.remove();
+    });
+  });
+  document.getElementById('btnCloseSkills').addEventListener('click', () => overlay.remove());
 }
 
 // ===== Main UI Class =====
@@ -536,6 +618,10 @@ export class GameUI {
       setRegime(this.game, data.p, data.regimeId);
       this.renderGame();
     }
+    if (data.type === 'skill') {
+      learnSkill(this.game, data.p, data.skillId);
+      this.renderGame();
+    }
     if (data.type === 'surrender') {
       this.game.gameOver = true;
       this.game.winner = this.myIndex;
@@ -565,6 +651,7 @@ export class GameUI {
 
     this.app.innerHTML = `
       <div class="bg-pattern"></div>
+      <div class="scanline-effect"></div>
       <div class="screen-game">
         <!-- TOP BAR -->
         <div class="game-topbar">
@@ -639,48 +726,66 @@ export class GameUI {
             </div>
 
             <!-- Opponent mini stats -->
-            <div class="opponent-section">
-              <div class="section-label">Oposición: ${opp.name}</div>
+            <div class="opponent-section" style="${isSpying ? 'border: 1px solid var(--blue); background: rgba(52, 152, 219, 0.05);' : ''}">
+              <div class="section-label" style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Oposición: ${opp.name}</span>
+                ${isSpying ? '<span style="font-size:0.6rem; color:var(--blue-light); animation: pulse 1s infinite;">🛰️ ESPIONAJE ACTIVO</span>' : ''}
+              </div>
               <div class="opponent-mini-stat">
                 <span class="opp-label">💰 Presupuesto</span>
-                <span>$${opp.money}</span>
+                <span>${isSpying ? '$' + opp.money : '$??'}</span>
               </div>
               <div class="opponent-mini-stat">
                 <span class="opp-label">⭐ Reputación</span>
-                <span>${opp.popularity}%</span>
-              </div>
-              <div class="opponent-mini-stat">
-                <span class="opp-label">📈 Inflación</span>
-                <span>${opp.inflation}%</span>
+                <span>${isSpying ? opp.popularity + '%' : (opp.popularity > 50 ? 'Estable' : 'Crítica')}</span>
               </div>
               <div class="opponent-mini-stat">
                 <span class="opp-label">💼 Corrupción</span>
-                <span>${Math.floor(opp.corruption)}%</span>
+                <span>${isSpying ? Math.floor(opp.corruption) + '%' : '??%'}</span>
               </div>
               <div class="opponent-mini-stat">
                 <span class="opp-label">🪖 Reserva</span>
-                <span>${opp.military}</span>
+                <span>${isSpying ? opp.military : '??'}</span>
               </div>
-              <div class="opponent-mini-stat">
-                <span class="opp-label">📡 Inteligencia</span>
-                <span>${opp.resources}</span>
-              </div>
+              ${isSpying ? `
+                <div class="opponent-active-laws" style="margin-top:8px; padding-top:4px; border-top:1px solid rgba(255,255,255,0.05);">
+                  <div style="font-size:0.6rem; color:var(--text-dim); margin-bottom:4px;">LEYES ENEMIGAS VIGENTES:</div>
+                  <div style="display:flex; flex-wrap:wrap; gap:4px;">
+                    ${opp.activeLaws.length ? opp.activeLaws.map(id => {
+                      const l = LAWS.find(x => x.id === id);
+                      return `<span title="${l.name}" style="background:var(--red); color:#fff; font-size:0.6rem; padding:2px 4px; border-radius:2px;">${l.name}</span>`;
+                    }).join('') : '<span style="font-size:0.6rem; color:var(--text-muted);">Ninguna</span>'}
+                  </div>
+                </div>
+              ` : ''}
             </div>
 
             <!-- CABINET PANEL -->
-            <div class="panel cabinet-panel card" style="margin-top:12px; border:1px solid rgba(255,255,255,0.05); background: rgba(20,25,35,0.6);">
-              <div class="panel-header" style="font-size:0.75rem; border-bottom:1px solid rgba(255,255,255,0.05); padding:6px; color:var(--text-dim); display:flex; justify-content:space-between;">
-                <span>⚖️ GABINETE DE GOBIERNO</span>
-                <span style="color:var(--gold); font-weight:bold;">${REGIMES[me.regime].icon} ${REGIMES[me.regime].name.toUpperCase()}</span>
+            <div class="panel cabinet-panel card" style="margin-top:12px; border:1px solid rgba(52, 152, 219, 0.2); background: rgba(20,25,35,0.8); position:relative; overflow:hidden;">
+              <div style="position:absolute; top:0; left:0; width:100%; height:2px; background: linear-gradient(90deg, var(--blue), transparent);"></div>
+              <div class="panel-header" style="font-size:0.75rem; border-bottom:1px solid rgba(255,255,255,0.05); padding:8px; color:var(--text-dim); display:flex; justify-content:space-between; align-items:center;">
+                <span style="letter-spacing:1px;">⚖️ CONSEJO DE MINISTROS</span>
+                <span style="color:var(--blue-light); font-weight:900; background:rgba(52,152,219,0.1); padding:2px 8px; border-radius:4px; font-size:0.65rem;">
+                  ${REGIMES[me.regime].icon} ${REGIMES[me.regime].name.toUpperCase()}
+                </span>
               </div>
-              <div style="padding:10px;">
-                <div style="font-size:0.7rem; color:var(--text-dim); margin-bottom: 8px;">
-                   <strong>Leyes Activas:</strong> ${me.activeLaws.length ? me.activeLaws.map(id => LAWS.find(l=>l.id===id).name).join(', ') : 'Ninguna'}
+              <div style="padding:12px;">
+                <div style="margin-bottom: 12px;">
+                   <div style="font-size:0.65rem; color:var(--text-dim); margin-bottom:6px; text-transform:uppercase;">Marco Legal Vigente:</div>
+                   <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                     ${me.activeLaws.length ? me.activeLaws.map(id => {
+                        const lw = LAWS.find(l=>l.id===id);
+                        return `<div class="law-tag" style="background:rgba(255,255,255,0.05); border:1px solid var(--border); padding:4px 8px; border-radius:4px; font-size:0.7rem; display:flex; align-items:center; gap:5px;">
+                          <span style="color:var(--gold-light);">📜</span> ${lw.name}
+                        </div>`;
+                     }).join('') : '<div style="font-size:0.75rem; color:var(--text-muted); font-style:italic;">Sin leyes promulgadas...</div>'}
+                   </div>
                 </div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
-                  <button class="btn btn-xs btn-outline" id="btnLaws" style="font-size:0.65rem;">⚖️ Promulgar Ley</button>
-                  <button class="btn btn-xs btn-outline" id="btnRegime" style="font-size:0.65rem;">🏛️ Cambiar Régimen</button>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                  <button class="btn btn-xs btn-primary" id="btnLaws" style="font-size:0.7rem; padding:8px 0; border: 1px solid var(--blue-light);">⚖️ DICTAR LEY</button>
+                  <button class="btn btn-xs btn-outline" id="btnRegime" style="font-size:0.7rem; padding:8px 0;">🏛️ SISTEMA POLÍTICO</button>
                 </div>
+                <button class="btn btn-xs btn-outline" id="btnSkills" style="width:100%; margin-top:8px; font-size:0.7rem; color:var(--blue-light); border-color:var(--blue-dim);">🧪 DESARROLLO TECNOLÓGICO</button>
               </div>
             </div>
 
@@ -812,6 +917,10 @@ export class GameUI {
 
     document.getElementById('btnRegime')?.addEventListener('click', () => {
       this._showRegimeModal();
+    });
+
+    document.getElementById('btnSkills')?.addEventListener('click', () => {
+      this._showSkillTreeModal();
     });
 
     // Event listeners
@@ -973,15 +1082,38 @@ export class GameUI {
         <div class="node-influence-ring" style="background: conic-gradient(var(--blue) 0% ${p0w}%, var(--red) ${p0w}% ${p0w + p1w}%, rgba(20,25,30,0.8) ${p0w + p1w}% 100%);"></div>
         <div class="node-inner" style="${isStable ? `background-color: ${this.myIndex === 0 ? 'var(--blue)' : 'var(--red)'};` : ''}">
           <div class="node-icon">${region.icon}</div>
+          <div class="supply-bar" title="Suministros: ${region.supply}%">
+            <div class="supply-progress" style="width: ${region.supply}%;"></div>
+          </div>
         </div>
-        ${hasConflict ? `<div class="insurgent-warning" style="position:absolute; top:-30px; font-size:1.5rem; text-shadow:0 0 10px #f00;">⚔️</div>` : ''}
-        <div class="troops-bubbles">
-          ${region.troops && region.troops[0] > 0 ? `<div class="troop-bubble player-0">🛡️ ${region.troops[0]}</div>` : ''}
-          ${region.troops && region.troops[1] > 0 ? `<div class="troop-bubble player-1">🛡️ ${region.troops[1]}</div>` : ''}
+        ${hasConflict ? `<div class="combat-clash" style="position:absolute; top:-35px; font-size:2rem; animation: pulse 0.5s infinite;">💥</div>` : ''}
+        
+        <div class="unit-counters">
+          ${(function(){
+            const renderUnits = (pIdx) => {
+              const u = region.units[pIdx];
+              if (!u) return '';
+              const total = u.infantry + u.armored + u.specops;
+              if (total === 0) return '';
+              return `
+                <div class="unit-group player-${pIdx}">
+                  ${u.infantry > 0 ? `<span class="u-cnt">🪖${u.infantry}</span>` : ''}
+                  ${u.armored > 0 ? `<span class="u-cnt">🚜${u.armored}</span>` : ''}
+                  ${u.specops > 0 ? `<span class="u-cnt">⚡${u.specops}</span>` : ''}
+                </div>
+              `;
+            };
+            return renderUnits(0) + renderUnits(1);
+          })()}
         </div>
+
         <div class="node-labels">
-          <div class="node-name" style="${isStable ? `color: ${this.myIndex === 0 ? 'var(--blue-light)' : 'var(--red-light)'};` : ''}">${region.name} <span style="opacity:0.6">(${region.population}M)</span></div>
-          <div class="node-inf-text">Fed: ${region.influence[0]}% | Ali: ${region.influence[1]}%</div>
+          <div class="node-name" style="${isStable ? `color: ${this.myIndex === 0 ? 'var(--blue-light)' : 'var(--red-light)'};` : ''}">${region.name} <span style="opacity:0.6; font-size:0.6rem;">${region.supply}% SUP</span></div>
+          <div class="node-inf-text">
+            ${region.influence[0] === 100 ? '<span style="color:var(--blue-light); font-weight:800; font-size:0.55rem;">FEDERACIÓN</span>' : 
+              region.influence[1] === 100 ? '<span style="color:var(--red-light); font-weight:800; font-size:0.55rem;">ALIANZA</span>' :
+              `<span style="color:var(--blue-light)">${region.influence[0]}%</span> / <span style="color:var(--red-light)">${region.influence[1]}%</span>`}
+          </div>
         </div>
       </div>
     `;
@@ -1003,6 +1135,16 @@ export class GameUI {
         this.network.send({ type: 'regime', p: this.myIndex, regimeId });
         this.renderGame();
         showToast(`Régimen cambiado a ${REGIMES[regimeId].name}`, 'warning');
+      }
+    });
+  }
+
+  _showSkillTreeModal() {
+    showSkillTreeModal(this.game, this.myIndex, (skillId) => {
+      if (learnSkill(this.game, this.myIndex, skillId)) {
+        this.network.send({ type: 'skill', p: this.myIndex, skillId });
+        this.renderGame();
+        showToast('Investigación completada!', 'success');
       }
     });
   }

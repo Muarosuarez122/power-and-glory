@@ -5,23 +5,29 @@
  */
 
 const REGIONS = [
-  { id: 'capital',       name: 'Metrópolis',       population: 15, icon: '🏛️', prod: { money: 15, resources: 2 } },
-  { id: 'norte_lejano',  name: 'Tundra Alta',      population: 2,  icon: '❄️', prod: { money: 2,  resources: 10 } },
-  { id: 'norte',         name: 'Montañas',         population: 5,  icon: '🏔️', prod: { money: 4,  resources: 8 } },
-  { id: 'frontera_norte',name: 'Paso del Norte',   population: 6,  icon: '⛺', prod: { money: 3,  resources: 6 } },
-  { id: 'desierto_norte',name: 'Dunas Rojas',      population: 3,  icon: '🏜️', prod: { money: 2,  resources: 12 } },
-  { id: 'costa',         name: 'Bahía Dorada',     population: 10, icon: '🏖️', prod: { money: 12, resources: 1 } },
-  { id: 'industrial',    name: 'Sector Fabril',    population: 12, icon: '🏭', prod: { money: 10, resources: 12 } },
-  { id: 'delta',         name: 'Delta del Río',    population: 8,  icon: '🏞️', prod: { money: 8,  resources: 6 } },
-  { id: 'selva',         name: 'Selva Profunda',   population: 4,  icon: '🌿', prod: { money: 2,  resources: 14 } },
-  { id: 'sur',           name: 'Gran Valle',       population: 9,  icon: '🌾', prod: { money: 8,  resources: 8 } },
-  { id: 'islas_lejanas', name: 'Atolón Sur',       population: 3,  icon: '🏝️', prod: { money: 8,  resources: 4 } },
-  { id: 'archipielago',  name: 'Archipiélago',     population: 5,  icon: '🗾', prod: { money: 10, resources: 5 } },
-  { id: 'estepa',        name: 'Llanura Esteparia',population: 6,  icon: '🐎', prod: { money: 5,  resources: 5 } },
-  { id: 'meseta',        name: 'Antiplanicie',     population: 3,  icon: '🌄', prod: { money: 3,  resources: 9 } },
-  { id: 'ruinas',        name: 'Antigua Capital',  population: 4,  icon: '🗿', prod: { money: 4,  resources: 10 } },
-  { id: 'yacimiento',    name: 'Yacimiento Minero',population: 7,  icon: '⛏️', prod: { money: 15, resources: 18 } }
+  { id: 'capital',       name: 'Metrópolis',       population: 15, icon: '🏛️', prod: { money: 15, resources: 2 }, supply: 100 },
+  { id: 'norte_lejano',  name: 'Tundra Alta',      population: 2,  icon: '❄️', prod: { money: 2,  resources: 10 }, supply: 30 },
+  { id: 'norte',         name: 'Montañas',         population: 5,  icon: '🏔️', prod: { money: 4,  resources: 8 }, supply: 50 },
+  { id: 'frontera_norte',name: 'Paso del Norte',   population: 6,  icon: '⛺', prod: { money: 3,  resources: 6 }, supply: 80 },
+  { id: 'desierto_norte',name: 'Dunas Rojas',      population: 3,  icon: '🏜️', prod: { money: 2,  resources: 12 }, supply: 40 },
+  { id: 'costa',         name: 'Bahía Dorada',     population: 10, icon: '🏖️', prod: { money: 12, resources: 1 }, supply: 90 },
+  { id: 'industrial',    name: 'Sector Fabril',    population: 12, icon: '🏭', prod: { money: 10, resources: 12 }, supply: 80 },
+  { id: 'delta',         name: 'Delta del Río',    population: 8,  icon: '🏞️', prod: { money: 8,  resources: 6 }, supply: 70 },
+  { id: 'selva',         name: 'Selva Profunda',   population: 4,  icon: '🌿', prod: { money: 2,  resources: 14 }, supply: 30 },
+  { id: 'sur',           name: 'Gran Valle',       population: 9,  icon: '🌾', prod: { money: 8,  resources: 8 }, supply: 100 },
+  { id: 'islas_lejanas', name: 'Atolón Sur',       population: 3,  icon: '🏝️', prod: { money: 8,  resources: 4 }, supply: 40 },
+  { id: 'archipielago',  name: 'Archipiélago',     population: 5,  icon: '🗾', prod: { money: 10, resources: 5 }, supply: 50 },
+  { id: 'estepa',        name: 'Llanura Esteparia',population: 6,  icon: '🐎', prod: { money: 5,  resources: 5 }, supply: 60 },
+  { id: 'meseta',        name: 'Antiplanicie',     population: 3,  icon: '🌄', prod: { money: 3,  resources: 9 }, supply: 40 },
+  { id: 'ruinas',        name: 'Antigua Capital',  population: 4,  icon: '🗿', prod: { money: 4,  resources: 10 }, supply: 50 },
+  { id: 'yacimiento',    name: 'Yacimiento Minero',population: 7,  icon: '⛏️', prod: { money: 15, resources: 18 }, supply: 60 }
 ];
+
+export const UNIT_TYPES = {
+  infantry: { id: 'infantry', name: 'Infantería', icon: '🪖', atk: 1, def: 1.5, cost: { military: 20 } },
+  armored: { id: 'armored', name: 'Blindados', icon: '🚜', atk: 4, def: 3, cost: { military: 40, money: 30 } },
+  specops: { id: 'specops', name: 'Cuerpo Élite', icon: '⚡', atk: 3, def: 1, cost: { military: 30, resources: 20 } }
+};
 
 export const MAP_EDGES = [
   ['norte_lejano','norte'], ['norte_lejano','meseta'], ['norte_lejano','ruinas'],
@@ -77,23 +83,47 @@ const ACTIONS = [
     }
   },
   {
-    id: 'deploy',
+    id: 'recruit_inf',
     faction: 'all',
-    name: '🪖 Despliegue de Batallón',
-    desc: 'Despliega 20 unidades desde tu reserva hacia el mapa táctico.',
+    name: '🪖 Reclutar Infantería',
+    desc: 'Básico. Defensa equilibrada.',
     cost: { military: 20 },
     needsRegion: true,
     effect: (game, region, myRef) => {
-      region.troops[myRef] = (region.troops[myRef] || 0) + 20;
-      return `🪖 Batallón desplegado en ${region.name}.`;
+      region.units[myRef].infantry += 10;
+      return `🪖 División de Infantería desplegada en ${region.name}.`;
+    }
+  },
+  {
+    id: 'recruit_arm',
+    faction: 'all',
+    name: '🚜 Producir Blindados',
+    desc: 'Alta potencia de ruptura.',
+    cost: { military: 40, money: 30 },
+    needsRegion: true,
+    effect: (game, region, myRef) => {
+      region.units[myRef].armored += 5;
+      return `🚜 División Blindada enviada al frente de ${region.name}.`;
+    }
+  },
+  {
+    id: 'recruit_elite',
+    faction: 'all',
+    name: '⚡ Comandos Élite',
+    desc: 'Efectivos para referéndums e incursiones.',
+    cost: { military: 30, resources: 20 },
+    needsRegion: true,
+    effect: (game, region, myRef) => {
+      region.units[myRef].specops += 3;
+      return `⚡ Comandos de Élite operando en ${region.name}.`;
     }
   },
   {
     id: 'combat',
     faction: 'all',
-    name: '⚔️ Operación Ofensiva',
-    desc: 'Inicia maniobras militares contra unidades enemigas en esta zona.',
-    cost: { money: 10 },
+    name: '⚔️ Iniciar Ofensiva General',
+    desc: 'Ordena a todas tus unidades en la región atacar al enemigo.',
+    cost: { money: 15 },
     needsRegion: true,
     effect: (game, region, myRef) => {
       return executeCombat(game, region, myRef, myRef === 0 ? 1 : 0);
@@ -171,33 +201,85 @@ export const REGIMES = {
   technocracy: { id: 'technocracy', name: 'Tecnocracia', icon: '🔬', desc: 'Eficiencia basada en datos.', bonus: '+25% Producción de Recursos/Inteligencia' }
 };
 
+export const LAW_CATEGORIES = {
+  ECON: '💰 Economía',
+  MIL: '🪖 Defensa',
+  SOC: '⚖️ Social'
+};
+
 export const LAWS = [
-  { id: 'martial_law', name: 'Ley Marcial', cost: { popularity: 20 }, desc: 'Estabiliza regiones ocupadas instantáneamente pero hunde la popularidad.' },
-  { id: 'propaganda', name: 'Ministerio de Verdad', cost: { money: 25 }, desc: 'Reduce el impacto de la inflación y la corrupción en la reputación.' },
-  { id: 'tax_haven', name: 'Paraíso Fiscal', cost: { popularity: 10 }, desc: 'Aumenta un 30% los ingresos de Metrópolis.' }
+  { id: 'martial_law', cat: 'MIL', name: 'Ley Marcial', cost: { popularity: 20 }, desc: 'Estabiliza regiones ocupadas totalmente pero castiga la reputación.' },
+  { id: 'propaganda', cat: 'SOC', name: 'Ministerio de Verdad', cost: { money: 25 }, desc: 'Reduce a la mitad la pérdida de reputación por corrupción.' },
+  { id: 'tax_haven', cat: 'ECON', name: 'Paraíso Fiscal', cost: { popularity: 10 }, desc: '+30% de ingresos en Metrópolis.' },
+  { id: 'war_bonds', cat: 'ECON', name: 'Bonos de Guerra', cost: { popularity: 15 }, desc: 'Recibe $50 inmediatamente, pero aumenta la inflación permanentemente.' },
+  { id: 'conscription', cat: 'MIL', name: 'Leva Obligatoria', cost: { popularity: 15 }, desc: 'Gana +10 Soldados adicionales cada turno automáticamente.' },
+  { id: 'surveillance', cat: 'SOC', name: 'Vigilancia Masiva', cost: { resources: 20 }, desc: 'Reduce la probabilidad de insurrecciones en tus territorios.' },
+  { id: 'free_trade', cat: 'ECON', name: 'Tratado Libre Comercio', cost: { money: 20 }, desc: 'Aumenta la producción de recursos en regiones costeras.' },
+  { id: 'cyber_ops', cat: 'MIL', name: 'Operaciones Cyber', cost: { resources: 40 }, desc: 'Permite ver el desglose completo del enemigo (Espionaje).' }
 ];
 
+export const SKILL_TREE = {
+  civil: [
+    { id: 'health', name: 'Servicios Públicos', desc: '+15% de influencia pasiva en todas las regiones.', cost: { resources: 30 } },
+    { id: 'education', name: 'Educación Superior', desc: 'Reduce el impacto de la Corrupción en un 25%.', cost: { resources: 40 }, req: 'health' },
+    { id: 'diplomacy', name: 'Canasta Diplomática', desc: 'Las propuestas comerciales dan un 20% más de beneficios.', cost: { resources: 50 }, req: 'education' }
+  ],
+  military: [
+    { id: 'training', name: 'Entrenamiento Táctico', desc: '+10 de fuerza base en todos los combates.', cost: { resources: 30 } },
+    { id: 'air_support', name: 'Apoyo Aéreo', desc: 'Las ofensivas reducen más la influencia enemiga.', cost: { resources: 45 }, req: 'training' },
+    { id: 'special_ops', name: 'Fuerzas Especiales', desc: 'Las tropas no mueren en combate si ganan.', cost: { resources: 60 }, req: 'air_support' }
+  ],
+  economic: [
+    { id: 'mining', name: 'Minería Automatizada', desc: '+15% Producción de Recursos en regiones mineras.', cost: { resources: 30 } },
+    { id: 'f_audit', name: 'Auditoría Nacional', desc: '-40% de Inflación generada por gastos.', cost: { resources: 45 }, req: 'mining' },
+    { id: 'global_hub', name: 'Sede Financiera', desc: 'La Capital genera +$25 adicionales por turno.', cost: { resources: 65 }, req: 'f_audit' }
+  ]
+};
+
 function executeCombat(game, region, attacker, defender) {
-  const myTroops = region.troops[attacker] || 0;
-  let oppTroops = region.troops[defender] || 0;
+  const pA = game.players[attacker];
+  const uA = region.units[attacker];
+  const uD = region.units[defender];
+
+  // Supply penalty
+  const supplyFactor = (region.supply / 100);
+  const atkPower = ((uA.infantry * UNIT_TYPES.infantry.atk) + (uA.armored * UNIT_TYPES.armored.atk) + (uA.specops * UNIT_TYPES.specops.atk)) * supplyFactor;
+  const defPower = (uD.infantry * UNIT_TYPES.infantry.def) + (uD.armored * UNIT_TYPES.armored.def) + (uD.specops * UNIT_TYPES.specops.def);
+
+  if (atkPower <= 0) return `⚠️ No tienes fuerzas operativas o suministros para atacar aquí.`;
+
+  // Luck + Bonuses
+  const bonus = pA.unlockedSkills.includes('training') ? 5 : 0;
+  const rollA = (Math.floor(Math.random() * atkPower) + (atkPower * 0.5) + bonus);
+  const rollD = Math.floor(Math.random() * defPower) + (defPower * 0.5);
+
+  // Casualties
+  const totalLossA = Math.floor(Math.random() * (rollD*0.4));
+  const totalLossD = Math.floor(Math.random() * (rollA*0.7));
+
+  // Distribute losses (proportional to unit counts)
+  const distributeLosses = (units, loss) => {
+    const total = units.infantry + units.armored + units.specops;
+    if (total <= 0) return;
+    const ratio = Math.min(0.9, loss / total); // Max 90% loss per combat
+    units.infantry = Math.max(0, Math.floor(units.infantry * (1 - ratio)));
+    units.armored = Math.max(0, Math.floor(units.armored * (1 - ratio)));
+    units.specops = Math.max(0, Math.floor(units.specops * (1 - ratio)));
+  };
+
+  distributeLosses(uA, totalLossA);
+  distributeLosses(uD, totalLossD);
+
+  let resMsg = `⚔️ Parte de Guerra (${region.name}): Suministro ${Math.floor(region.supply)}%. Atacante perdió ~${totalLossA} efectivos. Defensor perdió ~${totalLossD}. `;
   
-  if (myTroops <= 0) return `⚠️ No tienes tropas en esta región.`;
-  
-  const myRoll = Math.floor(Math.random() * myTroops) + Math.floor(myTroops * 0.5);
-  const oppRoll = oppTroops > 0 ? (Math.floor(Math.random() * oppTroops) + Math.floor(oppTroops * 0.5)) : 0;
-  
-  const casualtiesMe = Math.min(myTroops, Math.floor(Math.random() * (oppRoll || 3)));
-  const casualtiesOpp = Math.min(oppTroops, Math.floor(Math.random() * myRoll));
-  
-  region.troops[attacker] = Math.max(0, myTroops - casualtiesMe);
-  region.troops[defender] = Math.max(0, oppTroops - casualtiesOpp);
-  
-  let resMsg = `⚔️ Combate (${region.name}): Perdiste ${casualtiesMe}, Enemigo perdió ${casualtiesOpp}. `;
-  
-  if (region.troops[defender] === 0 && oppTroops > 0) {
-    region.influence[attacker] = Math.min(100, region.influence[attacker] + 25);
-    region.influence[defender] = Math.max(0, region.influence[defender] - 40);
-    resMsg += `¡FRENTE ROTO! Enemigo eliminado. Ganas Control.`;
+  const currentDefPower = (uD.infantry * UNIT_TYPES.infantry.def) + (uD.armored * UNIT_TYPES.armored.def) + (uD.specops * UNIT_TYPES.specops.def);
+
+  if (currentDefPower <= 0 && defPower > 0) {
+    const infGain = pA.unlockedSkills.includes('air_support') ? 40 : 25;
+    region.influence[attacker] = Math.min(100, region.influence[attacker] + infGain);
+    region.influence[defender] = Math.max(0, region.influence[defender] - 50);
+    resMsg += `¡RUPTURA DEL FRENTE! Territorio asegurado.`;
+    region.supply = Math.max(20, region.supply - 15); // Combat damages infra
   }
   return resMsg;
 }
@@ -212,7 +294,10 @@ export function createGameState(player0Name, player1Name) {
     return {
       ...r,
       influence: { 0: isP0Start ? 100 : 0, 1: isP1Start ? 100 : 0 },
-      troops: { 0: isP0Start ? 20 : 0, 1: isP1Start ? 20 : 0 }
+      units: { 
+        0: { infantry: isP0Start ? 30 : 0, armored: 0, specops: 0 }, 
+        1: { infantry: isP1Start ? 30 : 0, armored: 0, specops: 0 } 
+      }
     };
   });
 
@@ -222,13 +307,13 @@ export function createGameState(player0Name, player1Name) {
         name: player0Name || 'Federación del Norte', 
         money: 100, popularity: 100, military: 30, resources: 20, 
         inflation: 0, corruption: 0, color: 'blue',
-        regime: 'democracy', activeLaws: []
+        regime: 'democracy', activeLaws: [], unlockedSkills: []
       },
       { 
         name: player1Name || 'Alianza del Sur', 
         money: 100, popularity: 100, military: 30, resources: 20, 
         inflation: 0, corruption: 0, color: 'red',
-        regime: 'democracy', activeLaws: []
+        regime: 'democracy', activeLaws: [], unlockedSkills: []
       },
     ],
     regions,
@@ -250,11 +335,20 @@ export function passLaw(game, playerIndex, lawId) {
   const p = game.players[playerIndex];
   
   if (p.activeLaws.includes(lawId)) return false;
-  if (p.money < (law.cost.money||0) || p.popularity < (law.cost.popularity||0)) return false;
+  if (p.money < (law.cost.money||0) || p.popularity < (law.cost.popularity||0) || p.resources < (law.cost.resources||0)) return false;
 
   p.money -= (law.cost.money||0);
   p.popularity -= (law.cost.popularity||0);
+  p.resources -= (law.cost.resources||0);
   p.activeLaws.push(lawId);
+
+  // Immediate effects
+  if (lawId === 'war_bonds') p.money += 50;
+  if (lawId === 'martial_law') {
+    game.regions.forEach(r => {
+      if (getRegionOwner(r) === playerIndex) r.influence[playerIndex] = 100;
+    });
+  }
   
   game.log.push({ 
     round: game.round, 
@@ -275,6 +369,32 @@ export function setRegime(game, playerIndex, regimeId) {
     round: game.round, 
     player: playerIndex, 
     message: `🏛️ Cambio de Régimen: ${p.name} ahora es una ${REGIMES[regimeId].name}.`,
+    isEvent: true 
+  });
+  return true;
+}
+
+export function learnSkill(game, playerIndex, skillId) {
+  let skill = null;
+  Object.values(SKILL_TREE).forEach(branch => {
+    const s = branch.find(x => x.id === skillId);
+    if (s) skill = s;
+  });
+  
+  if (!skill) return false;
+  const p = game.players[playerIndex];
+  
+  if (p.unlockedSkills.includes(skillId)) return false;
+  if (skill.req && !p.unlockedSkills.includes(skill.req)) return false;
+  if (p.resources < (skill.cost.resources||0)) return false;
+
+  p.resources -= (skill.cost.resources||0);
+  p.unlockedSkills.push(skillId);
+  
+  game.log.push({ 
+    round: game.round, 
+    player: playerIndex, 
+    message: `🧪 Tecnología: Investigación de '${skill.name}' completada.`,
     isEvent: true 
   });
   return true;
@@ -447,6 +567,35 @@ export function processRoundEnd(game) {
     if (player.activeLaws.includes('tax_haven')) {
       turnMoney += 15;
     }
+    if (player.unlockedSkills.includes('global_hub')) {
+      turnMoney += 25;
+    }
+    if (player.activeLaws.includes('conscription')) {
+      player.military += 10;
+    }
+    if (player.activeLaws.includes('free_trade')) {
+       game.regions.forEach(r => {
+         if (getRegionOwner(r) === playerIdx && (r.id === 'costa' || r.id === 'delta')) turnRes += 5;
+       });
+    }
+    if (player.unlockedSkills.includes('mining')) {
+       game.regions.forEach(r => {
+         if (getRegionOwner(r) === playerIdx && r.id === 'yacimiento') turnRes += 10;
+       });
+    }
+
+    // Passive Influence Skill
+    if (player.unlockedSkills.includes('health')) {
+      game.regions.forEach(r => {
+        r.influence[playerIdx] = Math.min(100, (r.influence[playerIdx] || 0) + 2);
+      });
+    }
+
+
+    // War Bonds penalty (Inflation jump)
+    if (player.activeLaws.includes('war_bonds')) {
+      player.inflation += 5;
+    }
 
     // Corruption penalty
     if (player.corruption > 30) {
@@ -477,6 +626,34 @@ export function processRoundEnd(game) {
   });
 
   game.log.push({ round: game.round, player: -1, message: '🏦 Economía: Operaciones financieras procesadas.', isEvent: true });
+
+  // SUPPLY UPDATE (HoI4 Influence)
+  game.regions.forEach(r => {
+    const owner = getRegionOwner(r);
+    if (owner === -1) {
+      r.supply = Math.max(30, r.supply - 5);
+      return;
+    }
+    
+    // Simple supply check: is adjacent to a region with 100% influence from same owner?
+    let hasSupplyLines = (r.id === 'capital' || r.id === 'sur'); // Capitals have inner supply
+    game.regions.forEach(neighbor => {
+      if (areAdjacent(r.id, neighbor.id) && getRegionOwner(neighbor) === owner && neighbor.supply > 40) {
+        hasSupplyLines = true;
+      }
+    });
+
+    if (hasSupplyLines) {
+      r.supply = Math.min(100, r.supply + 10);
+    } else {
+      r.supply = Math.max(10, r.supply - 20);
+      if (r.supply < 20) {
+        game.log.push({ round: game.round, message: `📉 Abastecimiento crítico en ${r.name}. Unidades sufriendo deserción.`, isEvent: true });
+        r.units[owner].infantry = Math.max(0, r.units[owner].infantry - 2);
+      }
+    }
+  });
+
   game.lastEvent = triggerRandomEvent(game);
 
   // Reset Simultaneous state
