@@ -163,13 +163,13 @@ export class Network {
   }
 
   /** Send an action */
-  sendAction(actionId, regionId) {
-    this.send({ type: 'action', actionId, regionId });
+  sendAction(actionId, regionId, playerIndex) {
+    this.send({ type: 'action', actionId, regionId, p: playerIndex });
   }
 
-  /** Send end turn */
-  sendEndTurn() {
-    this.send({ type: 'endTurn' });
+  /** Send ready signal for simultaneous turn */
+  sendReady(playerIndex) {
+    this.send({ type: 'ready', p: playerIndex });
   }
 
   /** Send game start signal */

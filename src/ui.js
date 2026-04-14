@@ -4,7 +4,7 @@
  * Features: Chat, Sound FX, Surrender, Victory Progress Bar
  */
 import {
-  createGameState, getActions, performAction, endTurn, canAfford,
+  createGameState, getActions, performAction, processRoundEnd, canAfford,
   getRegionOwner, countRegions, getMaxRounds, getActionsPerTurn, getTotalScore,
   determineWinner, getActionCost
 } from './game.js';
@@ -338,28 +338,29 @@ export class GameUI {
   // ────── GAME DATA HANDLER ──────
   _handleGameData(data) {
     if (data.type === 'action') {
-      const logEntry = performAction(this.game, data.actionId, data.regionId);
+      const logEntry = performAction(this.game, data.actionId, data.regionId, data.p);
       if (logEntry) {
         this.renderGame();
-        showToast(logEntry.message, 'info');
+        showToast(logEntry.message, 'warning');
       }
     }
-    if (data.type === 'endTurn') {
-      endTurn(this.game);
+    if (data.type === 'ready') {
+      this.game.ready[data.p] = true;
+      if (this.game.ready[0] && this.game.ready[1]) {
+        processRoundEnd(this.game);
+        showToast('Siguiente Turno iniciado', 'info');
+        if (this.game.gameOver) {
+          this.renderGameOver();
+        } else if (this.game.lastEvent) {
+          showEventModal(this.game.lastEvent, () => {
+            this.renderGame();
+          });
+          this.game.lastEvent = null;
+        }
+      } else {
+        showToast('El rival ha terminado sus operaciones.', 'info');
+      }
       this.renderGame();
-      if (this.game.lastEvent) {
-        showEventModal(this.game.lastEvent, () => {
-          this.renderGame();
-        });
-        this.game.lastEvent = null;
-      }
-      if (this.game.currentTurn === this.myIndex) {
-        SFX.yourTurn();
-        showToast('🎯 ¡Es tu turno!', 'gold');
-      }
-      if (this.game.gameOver) {
-        this.renderGameOver();
-      }
     }
     if (data.type === 'gameState') {
       this.game = data.state;
@@ -392,7 +393,8 @@ export class GameUI {
     const g = this.game;
     const me = g.players[this.myIndex];
     const opp = g.players[this.myIndex === 0 ? 1 : 0];
-    const isMyTurn = g.currentTurn === this.myIndex;
+    const isMyTurn = true;
+    const iAmReady = g.ready[this.myIndex];
     const myFaction = this.myIndex === 0 ? 'gov' : 'reb';
     const actions = getActions().filter(a => a.faction === 'all' || a.faction === myFaction);
     const myRegions = countRegions(g, this.myIndex);
@@ -426,8 +428,8 @@ export class GameUI {
             </div>
           </div>
           <div class="topbar-right">
-            <div class="turn-badge ${isMyTurn ? 'my-turn' : 'not-my-turn'}">
-              ${isMyTurn ? '🎯 Tu Turno' : `⏳ ${opp.name}`}
+            <div class="turn-badge ${iAmReady ? 'not-my-turn' : 'my-turn'}">
+              ${iAmReady ? '⏳ Esperando Rival' : '🎯 Fase de Operaciones'}
             </div>
             <div class="topbar-round">
               R<strong>${Math.min(g.round, getMaxRounds())}</strong>/${getMaxRounds()}
@@ -472,7 +474,7 @@ export class GameUI {
               </div>
               <div class="stat-card card">
                 <div class="stat-label"><span class="stat-icon">🎬</span> Acciones</div>
-                <div class="stat-value" style="color: ${isMyTurn ? 'var(--gold-light)' : 'var(--text-muted)'};">${isMyTurn ? g.actionsLeft : '-'}</div>
+                <div class="stat-value" style="color: ${g.actionsLeft[this.myIndex] > 0 ? 'var(--gold-light)' : 'var(--text-muted)'};">${g.actionsLeft[this.myIndex]}</div>
               </div>
             </div>
 
@@ -568,12 +570,12 @@ export class GameUI {
 
           <!-- RIGHT SIDEBAR: Actions -->
           <div class="sidebar-right">
-            <div class="actions-title">⚡ Políticas${isMyTurn ? ` (${g.actionsLeft} restantes)` : ''}</div>
+            <div class="actions-title">⚡ Políticas (${g.actionsLeft[this.myIndex]} restantes)</div>
             ${actions.map(a => {
               const needsRegion = a.needsRegion;
-              const affordable = isMyTurn && canAfford(g, a.id) && g.actionsLeft > 0;
+              const affordable = canAfford(g, a.id, this.myIndex) && g.actionsLeft[this.myIndex] > 0;
               const regionSelected = !needsRegion || this.selectedRegion;
-              const disabled = !affordable || !regionSelected || (a.id === 'combat' && g.peaceDuration > 0);
+              const disabled = !affordable || !regionSelected || (a.id === 'combat' && g.peaceDuration > 0) || iAmReady;
               
               const currentCost = getActionCost(g, a.id, this.myIndex);
               let costStr = [];
@@ -591,7 +593,7 @@ export class GameUI {
                     <div style="flex:1;">
                       <div class="action-name" style="font-size:0.9rem; margin:0;">${title}</div>
                       <div class="action-desc" style="font-size:0.75rem; color:var(--text-dim); margin-top:4px; line-height:1.3;">
-                        ${a.desc}${needsRegion && !this.selectedRegion && isMyTurn ? '<br/><em style="color:var(--gold); font-weight:bold;">📍 REQUIERE SELECCIÓN</em>' : ''}
+                        ${a.desc}${needsRegion && !this.selectedRegion && !iAmReady ? '<br/><em style="color:var(--gold); font-weight:bold;">📍 REQUIERE SELECCIÓN</em>' : ''}
                       </div>
                     </div>
                   </div>
@@ -602,8 +604,8 @@ export class GameUI {
               `;
             }).join('')}
             <div class="end-turn-container">
-              <button class="btn btn-primary" id="btnEndTurn" style="width:100%;" ${!isMyTurn ? 'disabled' : ''}>
-                ${isMyTurn ? '⏭️ Terminar Turno' : '⏳ Esperando...'}
+              <button class="btn btn-primary" id="btnReady" style="width:100%;" ${iAmReady ? 'disabled' : ''}>
+                ${iAmReady ? '⏳ Esperando Rival...' : '✅ Terminar Operaciones'}
               </button>
               <button class="btn btn-danger btn-sm" id="btnSurrender" style="width:100%; margin-top:8px;">
                 🏳️ Rendirse
@@ -630,24 +632,26 @@ export class GameUI {
       });
     });
 
-    document.getElementById('btnEndTurn')?.addEventListener('click', () => {
-      if (!isMyTurn) return;
+    document.getElementById('btnReady')?.addEventListener('click', () => {
+      if (this.game.ready[this.myIndex]) return;
       SFX.click();
-      endTurn(this.game);
-      this.network.sendEndTurn();
-      this.network.sendGameState(this.game);
-      if (this.game.gameOver) {
-        this.renderGameOver();
-      } else {
-        if (this.game.lastEvent) {
-          showEventModal(this.game.lastEvent, () => {
-            this.renderGame();
-          });
-          this.game.lastEvent = null;
+      this.game.ready[this.myIndex] = true;
+      this.network.sendReady(this.myIndex);
+      
+      if (this.game.ready[0] && this.game.ready[1]) {
+        processRoundEnd(this.game);
+        if (this.game.gameOver) {
+          this.renderGameOver();
+          return;
+        } else {
+          showToast('Siguiente Turno iniciado', 'info');
+          if (this.game.lastEvent) {
+             showEventModal(this.game.lastEvent, () => this.renderGame());
+             this.game.lastEvent = null;
+          }
         }
-        this.renderGame();
-        showToast('Turno terminado', 'info');
       }
+      this.renderGame();
     });
 
     document.getElementById('btnSurrender')?.addEventListener('click', () => {
@@ -774,10 +778,10 @@ export class GameUI {
       return;
     }
 
-    const logEntry = performAction(this.game, actionId, regionId);
+    const logEntry = performAction(this.game, actionId, regionId, this.myIndex);
     if (logEntry) {
       SFX.action();
-      this.network.sendAction(actionId, regionId);
+      this.network.sendAction(actionId, regionId, this.myIndex);
       this.network.sendGameState(this.game);
       showToast(logEntry.message, 'success');
       this.renderGame();

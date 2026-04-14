@@ -23,6 +23,21 @@ const REGIONS = [
   { id: 'yacimiento',    name: 'Yacimiento Minero',population: 7,  icon: '⛏️', prod: { money: 15, resources: 18 } }
 ];
 
+export const MAP_EDGES = [
+  ['norte_lejano','norte'], ['norte_lejano','meseta'], ['norte_lejano','ruinas'],
+  ['norte','capital'], ['norte','frontera_norte'], ['norte','desierto_norte'],
+  ['desierto_norte','costa'], ['desierto_norte','meseta'],
+  ['frontera_norte','industrial'], ['frontera_norte','ruinas'],
+  ['costa','delta'], ['capital','costa'], ['capital','industrial'], ['capital','yacimiento'],
+  ['industrial','selva'], ['yacimiento','delta'], ['yacimiento','selva'], ['yacimiento','sur'],
+  ['delta','islas_lejanas'], ['selva','estepa'], ['sur','delta'], ['sur','selva'], 
+  ['sur','archipielago'], ['sur','estepa'], ['islas_lejanas','archipielago']
+];
+
+export function areAdjacent(id1, id2) {
+  return MAP_EDGES.some(edge => (edge[0] === id1 && edge[1] === id2) || (edge[0] === id2 && edge[1] === id1));
+}
+
 const ACTIONS = [
   // --- GOVERNMENT ACTIONS ---
   {
@@ -36,6 +51,33 @@ const ACTIONS = [
       region.influence[0] = Math.min(100, (region.influence[0] || 0) + 20);
       region.influence[1] = Math.max(0, (region.influence[1] || 0) - 15);
       return `🏗️ Infraestructura civil en ${region.name}: +20% Estabilidad.`;
+    }
+  },
+  {
+    id: 'gov_fortify',
+    faction: 'gov',
+    name: '🚧 Montar Frontera',
+    desc: 'Construye defensas. Requiere estar adyacente a territorio hostil.',
+    cost: { money: 20, military: 10 },
+    needsRegion: true,
+    effect: (game, region) => {
+      // Must own the region
+      if (getRegionOwner(region) !== 0) return `❌ Operación fallida: Sin control total en la zona.`;
+      
+      // Check adjacency
+      let hasHostileNeighbor = false;
+      game.regions.forEach(r => {
+        if (areAdjacent(region.id, r.id) && getRegionOwner(r) === 1) {
+          hasHostileNeighbor = true;
+        }
+      });
+      
+      if (!hasHostileNeighbor) return `❌ Operación cancelada: No hay amenaza enemiga colindante.`;
+      
+      region.troops[0] = (region.troops[0] || 0) + 15;
+      region.influence[0] = 100; // Insta stabilize
+      region.influence[1] = 0;
+      return `🚧 Frontera fortificada en ${region.name}! Defensas impenetrables establecidas.`;
     }
   },
   {
@@ -157,9 +199,8 @@ const ACTIONS = [
     desc: 'Aumenta tus reservas de milicia/ejército en 25 usando Presupuesto.',
     cost: { money: 15 },
     needsRegion: false,
-    effect: (game) => {
-      const p = game.currentTurn;
-      game.players[p].military += 25;
+    effect: (game, region, playerIndex) => {
+      game.players[playerIndex].military += 25;
       return `🎯 +25 Soldados añadidos a la reserva.`;
     }
   }
@@ -210,9 +251,9 @@ export function createGameState(player0Name, player1Name) {
       { name: 'Insurgencia Rebelde', money: 30, popularity: 100, military: 50, resources: 50, inflation: 0, corruption: 0, color: 'red' },
     ],
     regions,
-    currentTurn: 0,
+    ready: { 0: false, 1: false },
     round: 1,
-    actionsLeft: ACTIONS_PER_TURN,
+    actionsLeft: { 0: ACTIONS_PER_TURN, 1: ACTIONS_PER_TURN },
     log: [],
     gameOver: false,
     winner: null,
@@ -246,22 +287,22 @@ export function getActionCost(game, actionId, playerIndex) {
   };
 }
 
-export function canAfford(game, actionId) {
+export function canAfford(game, actionId, playerIndex) {
   if (actionId === 'combat' && game.peaceDuration > 0) return false;
   
-  const cost = getActionCost(game, actionId, game.currentTurn);
-  const player = game.players[game.currentTurn];
+  const cost = getActionCost(game, actionId, playerIndex);
+  const player = game.players[playerIndex];
   
   return player.money >= cost.money && player.popularity >= cost.popularity && player.resources >= cost.resources && player.military >= cost.military;
 }
 
-export function performAction(game, actionId, regionId) {
+export function performAction(game, actionId, regionId, playerIndex) {
   const action = ACTIONS.find(a => a.id === actionId);
-  if (!action || !canAfford(game, actionId)) return null;
-  if (game.actionsLeft <= 0) return null;
+  if (!action || !canAfford(game, actionId, playerIndex)) return null;
+  if (game.actionsLeft[playerIndex] <= 0 || game.ready[playerIndex]) return null;
 
-  const player = game.players[game.currentTurn];
-  const cost = getActionCost(game, actionId, game.currentTurn);
+  const player = game.players[playerIndex];
+  const cost = getActionCost(game, actionId, playerIndex);
   
   player.money -= cost.money;
   player.popularity -= cost.popularity;
@@ -276,12 +317,12 @@ export function performAction(game, actionId, regionId) {
   const region = regionId ? game.regions.find(r => r.id === regionId) : null;
   if (action.needsRegion && !region) return null;
 
-  const message = action.effect(game, region);
-  game.actionsLeft -= 1;
+  const message = action.effect(game, region, playerIndex);
+  game.actionsLeft[playerIndex] -= 1;
 
   const logEntry = {
     round: game.round,
-    player: game.currentTurn,
+    player: playerIndex,
     message,
     timestamp: Date.now(),
   };
@@ -290,70 +331,70 @@ export function performAction(game, actionId, regionId) {
   return logEntry;
 }
 
-export function endTurn(game) {
+export function processRoundEnd(game) {
   if (game.gameOver) return;
+  if (!game.ready[0] || !game.ready[1]) return;
 
-  if (game.currentTurn === 1) {
-    game.round += 1;
-    
-    if (game.peaceDuration > 0) {
-      game.peaceDuration -= 1;
-      if (game.peaceDuration === 0) {
-        game.log.push({ round: game.round, player: -1, message: '🕊️ El tratado de paz ha expirado.', isEvent: true });
-      }
+  game.round += 1;
+  
+  if (game.peaceDuration > 0) {
+    game.peaceDuration -= 1;
+    if (game.peaceDuration === 0) {
+      game.log.push({ round: game.round, player: -1, message: '🕊️ El tratado de paz ha expirado.', isEvent: true });
     }
-
-    // Passive Economy & Economy Dynamics
-    [0, 1].forEach(playerIdx => {
-      let player = game.players[playerIdx];
-      let turnMoney = 0;
-      let turnRes = 0;
-      game.regions.forEach(r => {
-        if (getRegionOwner(r) === playerIdx) {
-          turnMoney += r.prod.money;
-          turnRes += r.prod.resources;
-        }
-      });
-      turnMoney += 10;
-      turnRes += 5;
-      
-      // Inflation cool-down
-      if (player.inflation > 0) {
-        player.inflation = Math.max(0, player.inflation - 15);
-      }
-      // Corruption penalty
-      if (player.corruption > 30 && playerIdx === 0) {
-        const cPenalty = Math.floor((player.corruption - 30) / 10);
-        if (cPenalty > 0) {
-           player.popularity = Math.max(0, player.popularity - cPenalty);
-           game.log.push({ round: game.round, player: -1, message: `📉 La Corrupción rampante le cuesta ${cPenalty} Reputación al Gobierno.`, isEvent: true });
-        }
-      }
-
-      player.money += turnMoney;
-      player.resources += turnRes;
-    });
-
-    // Insurgency Penalty
-    let controlledByRebels = 0;
-    game.regions.forEach(r => {
-      if ((r.troops[1] || 0) > 0 && r.influence[1] > r.influence[0]) {
-        controlledByRebels++;
-      }
-    });
-
-    if (controlledByRebels > 0) {
-      const repLoss = controlledByRebels * 3;
-      game.players[0].popularity = Math.max(0, game.players[0].popularity - repLoss);
-      game.log.push({ round: game.round, player: -1, message: `⚠️ Regiones inestables causan pérdida de ${repLoss} Reputación.`, isEvent: true });
-    }
-
-    game.log.push({ round: game.round, player: -1, message: '🏦 Economía: Presupuesto extraído.', isEvent: true });
-    game.lastEvent = triggerRandomEvent(game);
   }
 
-  game.currentTurn = game.currentTurn === 0 ? 1 : 0;
-  game.actionsLeft = ACTIONS_PER_TURN;
+  // Passive Economy & Economy Dynamics
+  [0, 1].forEach(playerIdx => {
+    let player = game.players[playerIdx];
+    let turnMoney = 0;
+    let turnRes = 0;
+    game.regions.forEach(r => {
+      if (getRegionOwner(r) === playerIdx) {
+        turnMoney += r.prod.money;
+        turnRes += r.prod.resources;
+      }
+    });
+    turnMoney += 10;
+    turnRes += 5;
+    
+    // Inflation cool-down
+    if (player.inflation > 0) {
+      player.inflation = Math.max(0, player.inflation - 15);
+    }
+    // Corruption penalty
+    if (player.corruption > 30 && playerIdx === 0) {
+      const cPenalty = Math.floor((player.corruption - 30) / 10);
+      if (cPenalty > 0) {
+         player.popularity = Math.max(0, player.popularity - cPenalty);
+         game.log.push({ round: game.round, player: -1, message: `📉 La Corrupción rampante le cuesta ${cPenalty} Reputación al Gobierno.`, isEvent: true });
+      }
+    }
+
+    player.money += turnMoney;
+    player.resources += turnRes;
+  });
+
+  // Insurgency Penalty
+  let controlledByRebels = 0;
+  game.regions.forEach(r => {
+    if ((r.troops[1] || 0) > 0 && r.influence[1] > r.influence[0]) {
+      controlledByRebels++;
+    }
+  });
+
+  if (controlledByRebels > 0) {
+    const repLoss = controlledByRebels * 3;
+    game.players[0].popularity = Math.max(0, game.players[0].popularity - repLoss);
+    game.log.push({ round: game.round, player: -1, message: `⚠️ Regiones inestables causan pérdida de ${repLoss} Reputación.`, isEvent: true });
+  }
+
+  game.log.push({ round: game.round, player: -1, message: '🏦 Economía: Presupuesto extraído.', isEvent: true });
+  game.lastEvent = triggerRandomEvent(game);
+
+  // Reset Simultaneous state
+  game.ready = { 0: false, 1: false };
+  game.actionsLeft = { 0: ACTIONS_PER_TURN, 1: ACTIONS_PER_TURN };
 
   // Immediate win conditions
   if (game.players[0].popularity <= 0) {
