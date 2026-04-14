@@ -36,7 +36,7 @@ export class Network {
       const peerId = PEER_PREFIX + this.roomCode;
 
       this.peer = new Peer(peerId, {
-        host: window.location.hostname,
+        host: window.location.hostname || '127.0.0.1',
         port: 5173,
         path: '/peerjs/app',
         config: {
@@ -74,7 +74,7 @@ export class Network {
       const hostId = PEER_PREFIX + this.roomCode;
 
       this.peer = new Peer({
-        host: window.location.hostname,
+        host: window.location.hostname || '127.0.0.1',
         port: 5173,
         path: '/peerjs/app',
         config: {
